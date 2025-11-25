@@ -482,6 +482,13 @@ window.addEventListener('keyup', (e) => {
         if (rHoldTimer) { clearTimeout(rHoldTimer); rHoldTimer = null; }
     }
 });
+  // ====== SPACE KEY TAP ======
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault(); // предотвращаем скролл страницы
+        tapEffective();     // вызываем функцию клика
+    }
+});
 </script>
 </body>
 </html>
