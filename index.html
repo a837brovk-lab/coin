@@ -58,7 +58,7 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
 
 <!-- Консоль -->
 <div id="console">
-  <div id="consoleHistory">Примеры команд: /pay ID SUM, /click ID POWER, /autoclick ID LEVEL, /balance ID, /changeID OLD_ID NEW_ID, /ban ID</div>
+  <div id="consoleHistory">Примеры команд: /pay ID SUM, /click ID POWER, /autoclick ID LEVEL, /balance ID, /changeID OLD_ID NEW_ID, /ban ID, /resetall</div>
   <div id="consoleOutput"></div>
   <input id="consoleInput" type="text" placeholder="Введите команду...">
 </div>
@@ -86,8 +86,8 @@ const db = firebaseEnabled ? firebase.database() : null;
 
 // ====== GLOBAL DATA ======
 let ruina=0, baseClick=1, baseAuto=0, upgradeCost=50, autoClickCost=20000, selectedSkin=1, autoInterval=null, playerID=null, purchasedSkins=[], msgTimeout=null;
-let totalClicks = 0;
-let activeBoostMultiplier = 1;
+let totalClicks = 0;ф
+le activeBoostMultiplier = 1;
 let boostTimer = null;
 
 // thresholds (persisted per player)
@@ -489,24 +489,6 @@ window.addEventListener('keydown', (e) => {
         tapEffective();     // вызываем функцию клика
     }
 });
-  else if(command === "/resetall"){
-    if(!firebaseEnabled){
-        log("Firebase не подключен, нельзя сбросить у всех!");
-        showMsg("Firebase не подключен!");
-        return;
-    }
-    if(confirm("⚠️ This will reset ALL player data! Are you sure?")){
-        db.ref("players").remove()
-        .then(()=>{
-            log("All player data cleared from cloud!");
-            showMsg("All player data cleared from cloud!");
-        })
-        .catch(err=>{
-            log("Error clearing cloud data: " + err);
-            showMsg("Error clearing cloud data");
-        });
-    }
-}
 </script>
 </body>
 </html>
