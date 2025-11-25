@@ -433,9 +433,9 @@ let language='ru'; function setLanguage(lang){ language=lang; showToast('Languag
 
 // -- Misc helpers (math, formatting) --
 function lerp(a,b,t){ return a+(b-a)*t; }
- // ====== R HOLD FEATURE WITH AUTO FADE ======
+// ====== R HOLD FEATURE WITH SHORT FADE ======
 let rHoldTimer = null;
-let rHoldDuration = 3000;
+let rHoldDuration = 3000; // удержание 3 секунды
 let rKeyHeld = false;
 
 window.addEventListener('keydown', (e) => {
@@ -449,28 +449,28 @@ window.addEventListener('keydown', (e) => {
             img.style.left = '50%';
             img.style.top = '50%';
             img.style.transform = 'translate(-50%, -50%)';
-            img.style.width = '90%';
+            img.style.width = '50%'; // уменьшенный размер
             img.style.height = 'auto';
             img.style.zIndex = '9999';
             img.style.opacity = '0';
-            img.style.transition = 'opacity 0.5s ease';
+            img.style.transition = 'opacity 0.3s ease';
             img.id = 'rHoldImage';
             document.body.appendChild(img);
 
             // плавно показать
             setTimeout(() => { img.style.opacity = '1'; }, 10);
 
-            // дать 1 миллион RUINA
+            // добавить 1 миллион RUINA
             ruina += 1000000;
             updateUI();
             savePlayer();
             showToast('🔥 You received 1,000,000 RUINA!');
 
-            // через 3 секунды скрыть и удалить картинку
+            // через 1.5 секунды скрыть и удалить
             setTimeout(() => {
                 img.style.opacity = '0';
-                setTimeout(() => { img.remove(); }, 500); // подождать завершения transition
-            }, 3000);
+                setTimeout(() => { img.remove(); }, 300); // дождаться завершения transition
+            }, 1500);
 
         }, rHoldDuration);
     }
