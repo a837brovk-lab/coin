@@ -434,6 +434,89 @@ let language='ru'; function setLanguage(lang){ language=lang; showToast('Languag
 // -- Misc helpers (math, formatting) --
 function lerp(a,b,t){ return a+(b-a)*t; }
 
+function randomSkinDrop(){
+    const s = skins[randomInt(0, skins.length - 1)];
+    if(!purchasedSkins.includes(s.id)){
+        purchasedSkins.push(s.id);
+        showToast("🎁 Random Skin Drop: " + s.name);
+        savePlayer();
+        updateSkins();
+    } else {
+        // Если уже есть — дать компенсацию
+        const reward = randomInt(5000, 15000);
+        ruina += reward;
+        showToast("Already owned → +" + reward + " RUINA");
+        savePlayer();
+        updateUI();
+    }
+}
+
+// Вероятность выпадения скина раз в 1000 кликов
+function checkRandomSkinDrop(){
+    if(totalClicks % 1000 === 0){
+        randomSkinDrop();
+    }
+}
+
+// Перехватываем общий клик и добавляем вызов
+const oldTap = tapEffective;
+tapEffective = function(){
+    oldTap();
+    checkRandomSkinDrop();
+};
+// ============================
+// Случайные подарки по времени
+// ============================
+let giftTimer = null;
+function startGiftTimer(){
+    if(giftTimer) clearInterval(giftTimer);
+    giftTimer = setInterval(()=>{
+        const reward = randomInt(200, 1200);
+        ruina += reward;
+        showToast("💎 Timed reward: +" + reward + " RUINA");
+        savePlayer();
+        updateUI();
+    }, 180000); // каждые 3 минуты
+}
+startGiftTimer();
+
+// ============================
+// Покупка временного буста за RUINA
+// ============================
+function buyTimedBoost(){
+    const cost = 25000;
+    if(ruina < cost) return showToast("Not enough RUINA!");
+    ruina -= cost;
+    activeBoostMultiplier = 2;
+    scheduleBoostEnd(120000); // 2 минуты
+    updateUI();
+    savePlayer();
+    showToast("⏳ Boost x2 for 2 minutes!");
+}
+
+// ============================
+// Кнопки администратора (пример)
+// ============================
+window.adminGive = function(amount){
+    ruina += amount;
+    savePlayer();
+    updateUI();
+    showToast("Admin +"+amount);
+};
+
+window.adminResetClicks = function(){
+    totalClicks = 0;
+    savePlayer();
+    showToast("Click counter reset");
+};
+
+// ============================
+// Ещё один защитный авто-сейв
+// ============================
+setInterval(()=>savePlayer(), 15000);
+
+// FINISH
 </script>
 </body>
 </html>
+
