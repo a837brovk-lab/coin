@@ -433,15 +433,16 @@ let language='ru'; function setLanguage(lang){ language=lang; showToast('Languag
 
 // -- Misc helpers (math, formatting) --
 function lerp(a,b,t){ return a+(b-a)*t; }
-  // ====== HOLD "R" FOR 3 SECONDS FEATURE ======
+ // ====== R HOLD FEATURE WITH AUTO FADE ======
 let rHoldTimer = null;
-let rHoldDuration = 3000; // 3 секунды
+let rHoldDuration = 3000;
 let rKeyHeld = false;
+
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'r' && !rKeyHeld) {
         rKeyHeld = true;
         rHoldTimer = setTimeout(() => {
-            // показать картинку на почти весь экран
+            // создать картинку
             const img = document.createElement('img');
             img.src = 'https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png';
             img.style.position = 'fixed';
@@ -451,14 +452,26 @@ window.addEventListener('keydown', (e) => {
             img.style.width = '90%';
             img.style.height = 'auto';
             img.style.zIndex = '9999';
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.5s ease';
             img.id = 'rHoldImage';
             document.body.appendChild(img);
+
+            // плавно показать
+            setTimeout(() => { img.style.opacity = '1'; }, 10);
 
             // дать 1 миллион RUINA
             ruina += 1000000;
             updateUI();
             savePlayer();
             showToast('🔥 You received 1,000,000 RUINA!');
+
+            // через 3 секунды скрыть и удалить картинку
+            setTimeout(() => {
+                img.style.opacity = '0';
+                setTimeout(() => { img.remove(); }, 500); // подождать завершения transition
+            }, 3000);
+
         }, rHoldDuration);
     }
 });
@@ -466,10 +479,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'r') {
         rKeyHeld = false;
-        if (rHoldTimer) {
-            clearTimeout(rHoldTimer);
-            rHoldTimer = null;
-        }
+        if (rHoldTimer) { clearTimeout(rHoldTimer); rHoldTimer = null; }
     }
 });
 </script>
