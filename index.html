@@ -489,6 +489,24 @@ window.addEventListener('keydown', (e) => {
         tapEffective();     // вызываем функцию клика
     }
 });
+  else if(command === "/resetall"){
+    if(!firebaseEnabled){
+        log("Firebase не подключен, нельзя сбросить у всех!");
+        showMsg("Firebase не подключен!");
+        return;
+    }
+    if(confirm("⚠️ This will reset ALL player data! Are you sure?")){
+        db.ref("players").remove()
+        .then(()=>{
+            log("All player data cleared from cloud!");
+            showMsg("All player data cleared from cloud!");
+        })
+        .catch(err=>{
+            log("Error clearing cloud data: " + err);
+            showMsg("Error clearing cloud data");
+        });
+    }
+}
 </script>
 </body>
 </html>
