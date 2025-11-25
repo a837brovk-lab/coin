@@ -5,18 +5,102 @@
 <title>RUINACOIN</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { background:#0f0f0f; color:#fff; font-family:Arial, sans-serif; text-align:center; padding:20px; margin:0; }
-#playerId { position:fixed; top:10px; left:10px; background:#1a1a1a; padding:8px 12px; border-radius:8px; color:#00ffd5; font-weight:bold; font-size:16px; box-shadow:0 0 10px #00ffd5; z-index:9999; cursor:pointer; }
-h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff00aa; }
-#score { font-size:24px; margin-bottom:10px; }
-#clickPowerDisplay { font-size:20px; color:#00ffd5; margin-bottom:20px; }
-.tap-button { width:80%; max-width:200px; height:auto; cursor:pointer; border-radius:20px; box-shadow:0 0 20px #ff00aa; transition:transform .1s ease; }
-.tap-button:active { transform:scale(.97); }
-#message { margin-top:20px; font-size:18px; color:#ffcc00; min-height:24px; white-space:pre-line; }
-#boostIndicator { position:fixed; top:70px; left:10px; background:#222; color:#ffcc00; padding:6px 10px; border-radius:8px; box-shadow:0 0 8px rgba(0,0,0,.6); font-weight:bold; z-index:9999; display:none; }
-#console { display:none; position:fixed; bottom:0; left:0; width:100%; background:#111; color:#0f0; font-family:monospace; max-height:300px; overflow-y:auto; padding:10px; box-sizing:border-box; z-index:9999; }
-#consoleOutput { white-space:pre-wrap; margin-bottom:5px; }
-#consoleInput { width:100%; padding:5px; font-family:monospace; background:#000; color:#0f0; border:none; outline:none; }
+body {
+    background:#0f0f0f;
+    color:#fff;
+    font-family:Arial, sans-serif;
+    text-align:center;
+    padding:20px;
+    margin:0;
+}
+#playerId {
+    position:fixed;
+    top:10px;
+    left:10px;
+    background:#1a1a1a;
+    padding:8px 12px;
+    border-radius:8px;
+    color:#00ffd5;
+    font-weight:bold;
+    font-size:16px;
+    box-shadow:0 0 10px #00ffd5;
+    z-index:9999;
+    cursor:pointer;
+}
+h1 {
+    font-size:32px;
+    color:#ff00aa;
+    margin-bottom:10px;
+    text-shadow:0 0 10px #ff00aa;
+}
+#score {
+    font-size:24px;
+    margin-bottom:10px;
+}
+#clickPowerDisplay {
+    font-size:20px;
+    color:#00ffd5;
+    margin-bottom:20px;
+}
+.tap-button {
+    width:80%;
+    max-width:200px;
+    cursor:pointer;
+    border-radius:20px;
+    box-shadow:0 0 20px #ff00aa;
+    transition:transform .1s ease;
+}
+.tap-button:active {
+    transform:scale(.97);
+}
+#message {
+    margin-top:20px;
+    font-size:18px;
+    color:#ffcc00;
+    min-height:24px;
+    white-space:pre-line;
+}
+#boostIndicator {
+    position:fixed;
+    top:70px;
+    left:10px;
+    background:#222;
+    color:#ffcc00;
+    padding:6px 10px;
+    border-radius:8px;
+    box-shadow:0 0 8px rgba(0,0,0,.6);
+    font-weight:bold;
+    z-index:9999;
+    display:none;
+}
+#console {
+    display:none;
+    position:fixed;
+    bottom:0;
+    left:0;
+    width:100%;
+    background:#111;
+    color:#0f0;
+    font-family:monospace;
+    max-height:300px;
+    overflow-y:auto;
+    padding:10px;
+    box-sizing:border-box;
+    z-index:9999;
+}
+#consoleOutput {
+    white-space:pre-wrap;
+    margin-bottom:5px;
+}
+#consoleInput {
+    width:100%;
+    padding:5px;
+    font-family:monospace;
+    background:#000;
+    color:#0f0;
+    border:none;
+    outline:none;
+}
 </style>
 </head>
 <body>
@@ -25,428 +109,293 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
 <h1>RUINACOIN TAP</h1>
 <div id="score">RUINA: 0</div>
 <div id="clickPowerDisplay">Click Power: +1</div>
-
 <img id="tapButton" src="https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png" class="tap-button" alt="tap">
-
 <div id="message"></div>
 <div id="boostIndicator"></div>
 
 <!-- Консоль -->
 <div id="console">
-  <div id="consoleOutput"></div>
-  <input id="consoleInput" type="text" placeholder="Введите команду...">
+    <div id="consoleOutput"></div>
+    <input id="consoleInput" type="text" placeholder="Введите команду...">
 </div>
 
 <script>
-///////////////////////////
-// 1. Глобальные переменные
-///////////////////////////
+// ==================== GLOBAL VARIABLES ====================
 let playerID = localStorage.getItem("playerID") || String(Math.floor(100000 + Math.random() * 900000));
 localStorage.setItem("playerID", playerID);
 
-let ruina = Number(localStorage.getItem("ruina_"+playerID) || 0);
+let ruina = Number(localStorage.getItem("ruina_" + playerID) || 0);
 let baseClick = 1;
 let baseAuto = 0;
 let totalClicks = 0;
 let activeBoostMultiplier = 1;
 let boostTimer = null;
 let autoInterval = null;
-
 let consoleHistory = [];
 let consoleHistoryIndex = -1;
-
 let easterRPressStart = null;
 let easterParts = 0;
 
-const cases = [
-  {type:"ruina",amount:[1000,5000]},
-  {type:"ruina",amount:[5000,20000]},
-  {type:"boost",multiplier:2,duration:120},
-  {type:"boost",multiplier:3,duration:60}
-];
-
-///////////////////////////
-// 2. UTILS FUNCTIONS
-///////////////////////////
-function savePlayer(){
-  localStorage.setItem("ruina_"+playerID, ruina);
-  localStorage.setItem("ruinaData_"+playerID, JSON.stringify({baseClick,baseAuto,totalClicks,activeBoostMultiplier}));
+// ==================== UTILITY FUNCTIONS ====================
+function savePlayer() {
+    localStorage.setItem("ruina_" + playerID, ruina);
+    localStorage.setItem("ruinaData_" + playerID, JSON.stringify({baseClick, baseAuto, totalClicks, activeBoostMultiplier}));
 }
 
-function showMsg(text,duration=3000){
-  const m = document.getElementById("message");
-  m.innerText = text;
-  setTimeout(()=>{ m.innerText=""; },duration);
+function showMsg(text, duration = 3000) {
+    const m = document.getElementById("message");
+    m.innerText = text;
+    setTimeout(() => { m.innerText = ""; }, duration);
 }
 
-function updateUI(){
-  const clickPower = Math.round(baseClick * activeBoostMultiplier);
-  document.getElementById("score").innerText = "RUINA: "+Math.round(ruina);
-  document.getElementById("clickPowerDisplay").innerText = "Click Power: +"+clickPower;
-  document.getElementById("playerId").innerText = "ID: "+playerID;
-  renderBoostIndicator();
+function updateUI() {
+    const clickPower = Math.round(baseClick * activeBoostMultiplier);
+    document.getElementById("score").innerText = "RUINA: " + Math.round(ruina);
+    document.getElementById("clickPowerDisplay").innerText = "Click Power: +" + clickPower;
+    document.getElementById("playerId").innerText = "ID: " + playerID;
+    renderBoostIndicator();
 }
 
-function renderBoostIndicator(){
-  const el = document.getElementById("boostIndicator");
-  if(activeBoostMultiplier>1){
-    el.innerText = "BOOST x"+activeBoostMultiplier;
-    el.style.display="block";
-  } else el.style.display="none";
+function renderBoostIndicator() {
+    const el = document.getElementById("boostIndicator");
+    if(activeBoostMultiplier > 1) {
+        el.innerText = "BOOST x" + activeBoostMultiplier;
+        el.style.display = "block";
+    } else {
+        el.style.display = "none";
+    }
 }
 
-function scheduleBoostEnd(ms){
-  if(boostTimer) clearTimeout(boostTimer);
-  boostTimer = setTimeout(()=>{
-    activeBoostMultiplier=1;
+function scheduleBoostEnd(ms) {
+    if(boostTimer) clearTimeout(boostTimer);
+    boostTimer = setTimeout(() => {
+        activeBoostMultiplier = 1;
+        updateUI();
+        savePlayer();
+    }, ms);
+}
+
+function effectiveClickPower() {
+    return baseClick * activeBoostMultiplier;
+}
+
+function spawnParticles(power) {
+    const btn = document.getElementById("tapButton");
+    const clone = document.createElement("div");
+    clone.style.position = "fixed";
+    clone.style.width = "20px";
+    clone.style.height = "20px";
+    clone.style.borderRadius = "50%";
+    clone.style.background = "#ff00aa";
+    const rect = btn.getBoundingClientRect();
+    clone.style.left = (rect.left + rect.width / 2 - 10) + "px";
+    clone.style.top = (rect.top + rect.height / 2 - 10) + "px";
+    clone.style.opacity = "1";
+    clone.style.zIndex = "9999";
+    document.body.appendChild(clone);
+
+    const dx = (Math.random() * 100 - 50);
+    const dy = -Math.random() * 150 - 50;
+    clone.style.transition = "all 0.7s linear";
+
+    setTimeout(() => {
+        clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.3)`;
+        clone.style.opacity = "0";
+        setTimeout(() => clone.remove(), 700);
+    }, 10);
+}
+
+// ==================== CLICK HANDLER ====================
+function clickHandler() {
+    totalClicks++;
+    const power = effectiveClickPower();
+    ruina += power;
+    spawnParticles(power);
     updateUI();
     savePlayer();
-  }, ms);
-}
-
-function effectiveClickPower(){ return baseClick * activeBoostMultiplier; }
-
-function spawnParticles(power){
-  const btn=document.getElementById("tapButton");
-  const clone=document.createElement("div");
-  clone.style.position="fixed";
-  clone.style.width="20px";
-  clone.style.height="20px";
-  clone.style.borderRadius="50%";
-  clone.style.background="#ff00aa";
-  clone.style.pointerEvents = "none";
-  const rect = btn.getBoundingClientRect();
-  clone.style.left = (rect.left + rect.width/2 -10) +"px";
-  clone.style.top = (rect.top + rect.height/2 -10) +"px";
-  clone.style.opacity="1";
-  clone.style.zIndex="9999";
-  document.body.appendChild(clone);
-  let dx = (Math.random()*100-50);
-  let dy = -Math.random()*150-50;
-  clone.style.transition = "all 0.7s linear";
-  setTimeout(()=>{
-    clone.style.transform = `translate(${dx}px,${dy}px) scale(0.3)`;
-    clone.style.opacity="0";
-    setTimeout(()=>clone.remove(),700);
-  },10);
-}
-
-///////////////////////////
-// 3. CLICK HANDLING
-///////////////////////////
-function clickHandler(){
-  totalClicks++;
-  const power = effectiveClickPower();
-  ruina += power;
-  spawnParticles(power);
-  updateUI();
-  savePlayer();
 }
 
 document.getElementById("tapButton").addEventListener("click", clickHandler);
 
-///////////////////////////
-// 4. AUTCLICK
-///////////////////////////
-function startAutoClick(){
-  if(autoInterval) clearInterval(autoInterval);
-  autoInterval = setInterval(()=>{
-    ruina += baseAuto * activeBoostMultiplier;
+// ==================== AUTOCLICK ====================
+function startAutoClick() {
+    if(autoInterval) clearInterval(autoInterval);
+    autoInterval = setInterval(() => {
+        ruina += baseAuto * activeBoostMultiplier;
+        updateUI();
+        savePlayer();
+    }, 1000);
+}
+
+if(baseAuto > 0) startAutoClick();
+
+// ==================== CASE LOGIC ====================
+const cases = [
+    {type:"ruina", amount:[1000,5000]},
+    {type:"ruina", amount:[5000,20000]},
+    {type:"boost", multiplier:2, duration:120},
+    {type:"boost", multiplier:3, duration:60}
+];
+
+function openCase(num = 1) {
+    for(let i = 0; i < num; i++) {
+        const c = cases[Math.floor(Math.random() * cases.length)];
+        if(c.type === "ruina") {
+            const amount = Math.floor(Math.random() * (c.amount[1] - c.amount[0]) + c.amount[0]);
+            ruina += amount;
+            showMsg("🎁 You got " + amount + " RUINA!");
+        } else if(c.type === "boost") {
+            activeBoostMultiplier = c.multiplier;
+            scheduleBoostEnd(c.duration * 1000);
+            showMsg("⚡ Boost x" + c.multiplier + " for " + c.duration + "s");
+        }
+    }
     updateUI();
     savePlayer();
-  },1000);
-}
-if(baseAuto>0) startAutoClick();
-
-///////////////////////////
-// 5. CASES LOGIC
-///////////////////////////
-function openCase(num=1){
-  for(let i=0;i<num;i++){
-    const c = cases[Math.floor(Math.random()*cases.length)];
-    if(c.type==="ruina"){
-      const amount = Math.floor(Math.random()*(c.amount[1]-c.amount[0]+1)+c.amount[0]);
-      ruina += amount;
-      showMsg("🎁 You got "+amount+" RUINA!");
-    } else if(c.type==="boost"){
-      activeBoostMultiplier = c.multiplier;
-      scheduleBoostEnd(c.duration*1000);
-      showMsg("⚡ Boost x"+c.multiplier+" for "+c.duration+"s");
-    }
-  }
-  updateUI();
-  savePlayer();
 }
 
-///////////////////////////
-// 6. PLAYER DATA
-///////////////////////////
-function getPlayerData(id){
-  const data = JSON.parse(localStorage.getItem("ruinaData_"+id)||"{}");
-  return data || {baseClick:1, baseAuto:0, totalClicks:0, activeBoostMultiplier:1};
-}
-
-function setPlayerData(id,data){
-  localStorage.setItem("ruinaData_"+id, JSON.stringify(data));
-  if(id===playerID){
-    baseClick = data.baseClick; baseAuto = data.baseAuto;
-    totalClicks = data.totalClicks; activeBoostMultiplier = data.activeBoostMultiplier;
-    if(baseAuto>0) startAutoClick();
-    updateUI();
-  }
-}
-
-///////////////////////////
-// 7. CONSOLE COMMANDS
-///////////////////////////
+// ==================== CONSOLE COMMANDS ====================
 const consoleEl = document.getElementById("console");
 const consoleOutput = document.getElementById("consoleOutput");
 const consoleInput = document.getElementById("consoleInput");
 
-document.getElementById("playerId").addEventListener("dblclick",()=>{ 
-  consoleEl.style.display = consoleEl.style.display==="none"?"block":"none"; 
+document.getElementById("playerId").addEventListener("dblclick", () => {
+    consoleEl.style.display = consoleEl.style.display === "none" ? "block" : "none";
 });
 
-consoleInput.addEventListener("keydown",e=>{
-  if(e.key==="Enter"){
-    const cmd = e.target.value.trim();
-    if(cmd){ 
-      consoleHistory.push(cmd);
-      consoleHistoryIndex = consoleHistory.length;
-      handleCommand(cmd);
-      consoleOutput.innerText = cmd + "\n" + consoleOutput.innerText; 
-    }
-    e.target.value="";
-  } else if(e.key==="ArrowUp"){
-    if(consoleHistoryIndex>0){
-      consoleHistoryIndex--;
-      consoleInput.value = consoleHistory[consoleHistoryIndex];
-    }
-  } else if(e.key==="ArrowDown"){
-    if(consoleHistoryIndex<consoleHistory.length-1){
-      consoleHistoryIndex++;
-      consoleInput.value = consoleHistory[consoleHistoryIndex];
-    } else {
-      consoleInput.value="";
-    }
-  }
-});
-
-function handleCommand(cmd){
-  const parts = cmd.split(" ");
-  const command = parts[0];
-  function log(msg){ consoleOutput.innerText += msg + "\n"; consoleOutput.scrollTop = consoleOutput.scrollHeight; }
-
-  switch(command){
-    case "/pay": {
-      const id = parts[1], sum = parseInt(parts[2]);
-      if(!isNaN(sum)){
-        const bal = Number(localStorage.getItem("ruina_"+id) || 0);
-        localStorage.setItem("ruina_"+id, bal+sum);
-        if(id===playerID){ ruina += sum; updateUI(); }
-        log(`Added ${sum} RUINA to ${id}`);
-        showMsg(`Added ${sum} RUINA to ${id}`);
-      }
-      break;
-    }
-    case "/balance": {
-      const id = parts[1], amount = parseInt(parts[2]);
-      if(!isNaN(amount)){
-        localStorage.setItem("ruina_"+id, amount);
-        if(id===playerID){ ruina = amount; updateUI(); }
-        log(`Set balance of ${id} = ${amount}`);
-      }
-      break;
-    }
-    case "/click": {
-      const id = parts[1], val = parseInt(parts[2]);
-      if(!isNaN(val)){
-        const data = getPlayerData(id); data.baseClick = val; setPlayerData(id,data);
-        log(`Set ClickPower of ${id} = ${val}`);
-        showMsg(`Set ClickPower of ${id} = ${val}`);
-      }
-      break;
-    }
-    case "/autoclick": {
-      const id = parts[1], val = parseInt(parts[2]);
-      if(!isNaN(val)){
-        const data = getPlayerData(id); data.baseAuto = val; setPlayerData(id,data);
-        log(`Set AutoClick of ${id} = ${val}`);
-        showMsg(`Set AutoClick of ${id} = ${val}`);
-        if(id===playerID && val>0) startAutoClick();
-      }
-      break;
-    }
-    case "/boost": {
-      const id = parts[1], mult = parseFloat(parts[2]), dur = parseInt(parts[3]);
-      if(!isNaN(mult) && !isNaN(dur)){
-        const data = getPlayerData(id);
-        data.activeBoostMultiplier = mult;
-        setPlayerData(id,data);
-        if(id===playerID) scheduleBoostEnd(dur*1000);
-        log(`Applied boost x${mult} to ${id} for ${dur}s`);
-        showMsg(`Applied boost x${mult} to ${id} for ${dur}s`);
-      }
-      break;
-    }
-    case "/case": {
-      const id = parts[1], num = parts[2]?parseInt(parts[2]):1;
-      if(!isNaN(num)){
-        if(id===playerID){ openCase(num); }
-        else{
-          const data = getPlayerData(id);
-          for(let i=0;i<num;i++){
-            const c = cases[Math.floor(Math.random()*cases.length)];
-            if(c.type==="ruina"){
-              const amt = Math.floor(Math.random()*(c.amount[1]-c.amount[0]+1)+c.amount[0]);
-              const old = Number(localStorage.getItem("ruina_"+id)||0);
-              localStorage.setItem("ruina_"+id, old+amt);
-            } else if(c.type==="boost"){
-              data.activeBoostMultiplier = c.multiplier;
-            }
-          }
-          setPlayerData(id,data);
+consoleInput.addEventListener("keydown", e => {
+    if(e.key === "Enter") {
+        const cmd = e.target.value.trim();
+        if(cmd) {
+            consoleHistory.push(cmd);
+            consoleHistoryIndex = consoleHistory.length;
+            handleCommand(cmd);
+            consoleOutput.innerText = cmd + "\n" + consoleOutput.innerText;
         }
-        log(`Opened ${num} cases for ${id}`);
-      }
-      break;
+        e.target.value = "";
+    } else if(e.key === "ArrowUp") {
+        if(consoleHistoryIndex > 0) consoleInput.value = consoleHistory[--consoleHistoryIndex];
+    } else if(e.key === "ArrowDown") {
+        if(consoleHistoryIndex < consoleHistory.length - 1) consoleInput.value = consoleHistory[++consoleHistoryIndex];
+        else consoleInput.value = "";
     }
-    default:
-      log("Unknown command");
-  }
-}
-
-///////////////////////////
-// 8. PASCHALKA & KEYS
-///////////////////////////
-document.addEventListener("keydown",e=>{
-  if(e.code==="Space") clickHandler();
-  if(e.key==="r" || e.key==="R") {
-    if(easterRPressStart===null) easterRPressStart = Date.now();
-  }
-});
-document.addEventListener("keyup",e=>{
-  if(e.key==="r" || e.key==="R") {
-    if(easterRPressStart && Date.now()-easterRPressStart>=2000){
-      easterParts++;
-      showMsg(`Easter progress: part ${easterParts}/4`);
-      if(easterParts>=4){
-        showMsg("🔥 RUINACOIN LOGO UNLOCKED! 🔥",5000);
-      }
-    }
-    easterRPressStart=null;
-  }
 });
 
-///////////////////////////
-// 9. NEW FUNCTIONS (20)
-///////////////////////////
-
-// 1. Reset player
-function resetPlayer(){
-  ruina = 0; baseClick = 1; baseAuto = 0; activeBoostMultiplier = 1; totalClicks = 0;
-  savePlayer(); updateUI(); showMsg("Player reset!");
+function getPlayerData(id) {
+    return JSON.parse(localStorage.getItem("ruinaData_" + id) || "{}") || {baseClick:1, baseAuto:0, totalClicks:0, activeBoostMultiplier:1};
 }
 
-// 2. Add random RUINA
-function addRandomRuina(min=100,max=1000){
-  const amt = Math.floor(Math.random()*(max-min+1)+min);
-  ruina += amt; savePlayer(); updateUI(); showMsg(`+${amt} RUINA`);
+function setPlayerData(id, data) {
+    localStorage.setItem("ruinaData_" + id, JSON.stringify(data));
+    if(id === playerID) {
+        baseClick = data.baseClick;
+        baseAuto = data.baseAuto;
+        totalClicks = data.totalClicks;
+        activeBoostMultiplier = data.activeBoostMultiplier;
+        if(baseAuto > 0) startAutoClick();
+        updateUI();
+    }
 }
 
-// 3. Multiply click power temporarily
-function tempClickBoost(mult=2,duration=10){
-  activeBoostMultiplier = mult; updateUI();
-  scheduleBoostEnd(duration*1000);
-  showMsg(`Click x${mult} for ${duration}s`);
+function handleCommand(cmd) {
+    const parts = cmd.split(" ");
+    const command = parts[0];
+
+    function log(msg) {
+        consoleOutput.innerText += msg + "\n";
+        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    if(command === "/pay" && parts.length === 3) {
+        const id = parts[1], sum = parseInt(parts[2]);
+        if(!isNaN(sum)) {
+            const bal = Number(localStorage.getItem("ruina_" + id) || 0);
+            localStorage.setItem("ruina_" + id, bal + sum);
+            if(id === playerID) { ruina += sum; updateUI(); }
+            log(`Added ${sum} RUINA to ${id}`);
+            showMsg(`Added ${sum} RUINA to ${id}`);
+        }
+    } else if(command === "/balance" && parts.length === 3) {
+        const id = parts[1], amount = parseInt(parts[2]);
+        if(!isNaN(amount)) {
+            localStorage.setItem("ruina_" + id, amount);
+            if(id === playerID) { ruina = amount; updateUI(); }
+            log(`Set balance of ${id} = ${amount}`);
+        }
+    } else if(command === "/click" && parts.length === 3) {
+        const id = parts[1], val = parseInt(parts[2]);
+        if(!isNaN(val)) {
+            const data = getPlayerData(id);
+            data.baseClick = val;
+            setPlayerData(id, data);
+            log(`Set ClickPower of ${id} = ${val}`);
+            showMsg(`Set ClickPower of ${id} = ${val}`);
+        }
+    } else if(command === "/autoclick" && parts.length === 3) {
+        const id = parts[1], val = parseInt(parts[2]);
+        if(!isNaN(val)) {
+            const data = getPlayerData(id);
+            data.baseAuto = val;
+            setPlayerData(id, data);
+            log(`Set AutoClick of ${id} = ${val}`);
+            showMsg(`Set AutoClick of ${id} = ${val}`);
+        }
+    } else if(command === "/boost" && parts.length === 4) {
+        const id = parts[1], mult = parseFloat(parts[2]), dur = parseInt(parts[3]);
+        if(!isNaN(mult) && !isNaN(dur)) {
+            const data = getPlayerData(id);
+            data.activeBoostMultiplier = mult;
+            setPlayerData(id, data);
+            if(id === playerID) scheduleBoostEnd(dur * 1000);
+            log(`Applied boost x${mult} to ${id} for ${dur}s`);
+            showMsg(`Applied boost x${mult} to ${id} for ${dur}s`);
+        }
+    } else if(command === "/case" && parts.length >= 2) {
+        const id = parts[1], num = parts[2] ? parseInt(parts[2]) : 1;
+        if(!isNaN(num)) {
+            if(id === playerID) openCase(num);
+            else {
+                const data = getPlayerData(id);
+                for(let i=0;i<num;i++){
+                    const c = cases[Math.floor(Math.random()*cases.length)];
+                    if(c.type==="ruina"){
+                        const amt = Math.floor(Math.random()*(c.amount[1]-c.amount[0])+c.amount[0]);
+                        const old = Number(localStorage.getItem("ruina_"+id)||0);
+                        localStorage.setItem("ruina_"+id, old+amt);
+                    } else if(c.type==="boost"){
+                        data.activeBoostMultiplier = c.multiplier;
+                    }
+                }
+                setPlayerData(id,data);
+            }
+            log(`Opened ${num} cases for ${id}`);
+        }
+    } else log("Unknown command");
 }
 
-// 4. Auto earn RUINA
-function tempAutoBoost(mult=2,duration=10){
-  if(autoInterval) clearInterval(autoInterval);
-  autoInterval = setInterval(()=>{
-    ruina += baseAuto*mult;
-    updateUI();
-    savePlayer();
-  },1000);
-  setTimeout(()=>{
-    if(baseAuto>0) startAutoClick();
-    else clearInterval(autoInterval);
-  },duration*1000);
-  showMsg(`Auto x${mult} for ${duration}s`);
-}
+// ==================== EASTER EGGS & KEYS ====================
+document.addEventListener("keydown", e => {
+    if(e.code === "Space") clickHandler();
+    if(e.key === "r" || e.key === "R") {
+        if(easterRPressStart === null) easterRPressStart = Date.now();
+    }
+});
+document.addEventListener("keyup", e => {
+    if(e.key === "r" || e.key === "R") {
+        if(easterRPressStart && Date.now() - easterRPressStart >= 2000) {
+            easterParts++;
+            showMsg(`Easter progress: part ${easterParts}/4`);
+            if(easterParts >= 4) {
+                showMsg("🔥 RUINACOIN LOGO UNLOCKED! 🔥", 5000);
+            }
+        }
+        easterRPressStart = null;
+    }
+});
 
-// 5. Lucky case
-function luckyCase(){
-  const reward = Math.random()<0.5 ? 5000 : 10000;
-  ruina += reward; savePlayer(); updateUI();
-  showMsg(`Lucky case: +${reward} RUINA`);
-}
+// ==================== INIT UI ====================
+updateUI();
+</script>
 
-// 6. Show stats
-function showStats(){
-  showMsg(`RUINA: ${Math.round(ruina)}\nClick: ${baseClick}\nAuto: ${baseAuto}\nTotal Clicks: ${totalClicks}`);
-}
-
-// 7. Toggle console
-function toggleConsole(){
-  consoleEl.style.display = consoleEl.style.display==="none"?"block":"none";
-}
-
-// 8. Increase click
-function increaseClick(val=1){
-  baseClick += val; savePlayer(); updateUI();
-}
-
-// 9. Increase autoclick
-function increaseAuto(val=1){
-  baseAuto += val; savePlayer(); updateUI();
-}
-
-// 10. Save snapshot
-function saveSnapshot(name){
-  const snap = {ruina,baseClick,baseAuto,totalClicks,activeBoostMultiplier};
-  localStorage.setItem("snap_"+name, JSON.stringify(snap));
-  showMsg(`Snapshot '${name}' saved!`);
-}
-
-// 11. Load snapshot
-function loadSnapshot(name){
-  const snap = JSON.parse(localStorage.getItem("snap_"+name));
-  if(snap){ ruina=snap.ruina;baseClick=snap.baseClick;baseAuto=snap.baseAuto;totalClicks=snap.totalClicks;activeBoostMultiplier=snap.activeBoostMultiplier; savePlayer(); updateUI(); showMsg(`Snapshot '${name}' loaded!`); }
-}
-
-// 12. Remove snapshot
-function removeSnapshot(name){
-  localStorage.removeItem("snap_"+name); showMsg(`Snapshot '${name}' removed!`);
-}
-
-// 13. Double RUINA
-function doubleRuina(){ ruina*=2; savePlayer(); updateUI(); showMsg("RUINA doubled!"); }
-
-// 14. Halve RUINA
-function halveRuina(){ ruina=Math.floor(ruina/2); savePlayer(); updateUI(); showMsg("RUINA halved!"); }
-
-// 15. Set RUINA
-function setRuina(val){ ruina=val; savePlayer(); updateUI(); showMsg(`RUINA set to ${val}`); }
-
-// 16. Random boost
-function randomBoost(){
-  const mult = Math.floor(Math.random()*5)+1;
-  tempClickBoost(mult,10);
-}
-
-// 17. Random autoclick boost
-function randomAutoBoost(){
-  const mult = Math.floor(Math.random()*5)+1;
-  tempAutoBoost(mult,10);
-}
-
-// 18. Easter egg reveal
-function easterEgg(){ showMsg("🎉 Secret easter egg! 🎉"); }
-
-// 19. Massive click
-function massiveClick(n=100){ for(let i=0;i<n;i++) clickHandler(); }
-
-// 20. Reset all data
-function resetAllData(){ localStorage.clear(); ruina=0;baseClick=1;baseAuto=0;totalClicks=0;activeBoostMultiplier=1; savePlayer(); updateUI(); showMsg("All data reset
+</body>
+</html>
