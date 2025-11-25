@@ -23,7 +23,13 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
 .skin-img { max-width:100%; border-radius:10px; display:block; margin:0 auto 6px; box-shadow:0 0 10px #00ffd5; }
 .skin-info { color:#00ffd5; font-size:14px; font-weight:bold; }
 .selected-badge { display:inline-block; margin-top:6px; padding:4px 8px; background:#00ffd5; color:#000; border-radius:8px; font-weight:bold; font-size:12px; }
+#topStatsContainer { margin-top:40px; text-align:left; max-width:400px; margin-left:auto; margin-right:auto; }
+#console { display:none; position:fixed; bottom:0; left:0; width:100%; background:#111; color:#0f0; font-family:monospace; max-height:300px; overflow-y:auto; padding:10px; box-sizing:border-box; z-index:9999; }
+#consoleHistory { font-size:12px; color:#0ff; margin-bottom:5px; white-space:pre-wrap; text-align:left; }
+#consoleOutput { white-space:pre-wrap; margin-bottom:5px; }
+#consoleInput { width:100%; padding:5px; font-family:monospace; background:#000; color:#0f0; border:none; outline:none; }
 .toast { position:fixed; right:20px; bottom:20px; background:#222; color:#fff; padding:8px 12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.6); margin-top:8px; }
+.boost-indicator { position:fixed; top:70px; left:10px; background:#222; color:#ffcc00; padding:6px 10px; border-radius:8px; box-shadow:0 0 8px rgba(0,0,0,.6); font-weight:bold; z-index:9999; }
 </style>
 </head>
 <body>
@@ -48,173 +54,386 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
 </div>
 
 <div id="message"></div>
+<div id="topStatsContainer"></div>
+
+<!-- Консоль -->
+<div id="console">
+  <div id="consoleHistory">Примеры команд: /pay ID SUM, /click ID POWER, /autoclick ID LEVEL, /balance ID, /changeID OLD_ID NEW_ID, /ban ID</div>
+  <div id="consoleOutput"></div>
+  <input id="consoleInput" type="text" placeholder="Введите команду...">
+</div>
+
+<!-- Firebase (совместимость) -->
+<script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-database-compat.js"></script>
 
 <script>
-// ===== FIREBASE OFFLINE SAFE =====
-const firebaseEnabled = false;
-const db = null;
+// ====== FIREBASE CONFIG ======
+const firebaseConfig = {
+  apiKey: "AIzaSyCTPqupywSBU4S5inETk8p-tQFMe3Dx4tE",
+  authDomain: "coin-2e819.firebaseapp.com",
+  projectId: "coin-2e819",
+  storageBucket: "coin-2e819.firebasestorage.app",
+  messagingSenderId: "701106957724",
+  appId: "1:701106957724:web:dfba4d3ce63521afb1ec59"
+};
+let firebaseEnabled = true;
+try {
+    if(!firebaseConfig.apiKey.includes("AIza")) firebaseEnabled=false;
+    else firebase.initializeApp(firebaseConfig);
+} catch(e){ firebaseEnabled=false; console.warn("Firebase отключен", e); }
+const db = firebaseEnabled ? firebase.database() : null;
 
-// ===== PLAYER VALUE STORAGE =====
-let ruina = 0;
-let baseClick = 1;
-let baseAuto = 0;
-let upgradeCost = 50;
-let autoClickCost = 20000;
-
-let playerID = null;
-let selectedSkin = 1;
-let purchasedSkins = [1];
-
-let autoInterval=null;
-let msgTimeout=null;
-
-// ===== CLICK STATISTICS =====
+// ====== GLOBAL DATA ======
+let ruina=0, baseClick=1, baseAuto=0, upgradeCost=50, autoClickCost=20000, selectedSkin=1, autoInterval=null, playerID=null, purchasedSkins=[], msgTimeout=null;
 let totalClicks = 0;
-
-// Next random thresholds
-let nextBoostX2 = randomInt(200,500);
-let nextBoostX3 = randomInt(600,900);
-
-// Active click multiplier
 let activeBoostMultiplier = 1;
 let boostTimer = null;
 
-// ===== UTIL =====
+// thresholds (persisted per player)
+function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function getNextX2(){ return randomInt(200,500); }
+function getNextX3(){ return randomInt(600,900); }
+
+// ====== SKINS ======
+const skins=[
+{id:1,name:"Default",img:"https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png",cost:0},
+{id:2,name:"Skin 1",cost:10000,img:"https://i.postimg.cc/Q9pCQYSJ/photo-1.png",bonus:{clickMult:1.1,autoMult:1}},
+{id:3,name:"Skin 2",cost:25000,img:"https://i.postimg.cc/4HgKm5v9/photo-2-2025-09-16-13-48-10.jpg",bonus:{clickMult:1.25,autoMult:1}},
+{id:4,name:"Skin 3",cost:50000,img:"https://i.postimg.cc/0MmMk3Sv/photo-3-2025-09-16-13-48-10.jpg",bonus:{clickMult:1.5,autoMult:1}},
+{id:5,name:"Skin 4",cost:120000,img:"https://i.postimg.cc/RJLWfHGb/photo-4-2025-09-16-13-48-10.jpg",bonus:{clickMult:1,autoMult:2}},
+{id:6,name:"Skin 5",cost:350000,img:"https://i.postimg.cc/7CjJyDfX/photo-5-2025-09-16-13-48-10.jpg",bonus:{clickMult:1,autoMult:3}},
+{id:7,name:"Skin 6",cost:700000,img:"https://i.postimg.cc/0rYMhTxd/photo-6-2025-09-16-13-48-10.jpg",bonus:{clickMult:3,autoMult:3}}
+];
+
+// ====== UTILS ======
 function generateID(){ return String(Math.floor(100000+Math.random()*900000)); }
 function loadOrCreatePlayerID(){ let id=localStorage.getItem("playerID"); if(!id){id=generateID(); localStorage.setItem("playerID",id);} return id; }
-
 function getBalance(id){ return Number(localStorage.getItem("ruina_"+id)||0); }
 function setBalance(id,val){ localStorage.setItem("ruina_"+id, Math.max(0, Math.round(val))); }
-
-function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-
-function showMsg(text, t=3000){
-  const m=document.getElementById("message");
-  m.innerText=text;
-  if(msgTimeout) clearTimeout(msgTimeout);
-  msgTimeout=setTimeout(()=>m.innerText="",t);
-}
-
-// ===== SAVE & LOAD =====
 function savePlayer(){
-  setBalance(playerID, ruina);
-  localStorage.setItem(
-    "ruinaData_"+playerID,
-    JSON.stringify({baseClick,baseAuto,upgradeCost,autoClickCost,selectedSkin,purchasedSkins})
-  );
+    setBalance(playerID, ruina);
+    const saveObj = {baseClick, baseAuto, upgradeCost, autoClickCost, selectedSkin, purchasedSkins, totalClicks, nextBoostX2, nextBoostX3, activeBoostMultiplier};
+    localStorage.setItem("ruinaData_"+playerID, JSON.stringify(saveObj));
+    if(firebaseEnabled) db.ref("players/"+playerID).set({ruina, baseClick, baseAuto, selectedSkin, purchasedSkins, updatedAt:Date.now()});
+}
+function showMsg(text,t=3000){ const m=document.getElementById("message"); m.innerText=text; if(msgTimeout) clearTimeout(msgTimeout); msgTimeout=setTimeout(()=>m.innerText="",t); }
+function showToast(text,duration=3000){ const id="toast_"+Date.now(); const el=document.createElement('div'); el.className='toast'; el.id=id; el.innerText=text; document.body.appendChild(el); setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),400); },duration); }
+
+// ====== BOOST PERSISTENCE HELPERS ======
+let nextBoostX2 = getNextX2();
+let nextBoostX3 = getNextX3();
+
+function loadBoostState(saved){
+  if(saved && typeof saved.totalClicks==='number') totalClicks = saved.totalClicks;
+  if(saved && typeof saved.nextBoostX2==='number') nextBoostX2 = saved.nextBoostX2;
+  if(saved && typeof saved.nextBoostX3==='number') nextBoostX3 = saved.nextBoostX3;
+  if(saved && typeof saved.activeBoostMultiplier==='number') activeBoostMultiplier = saved.activeBoostMultiplier;
 }
 
+// ====== LOAD PLAYER ======
 function loadPlayer(){
-  playerID = loadOrCreatePlayerID();
-  document.getElementById("playerId").innerText = "ID: "+playerID;
-  ruina = getBalance(playerID)||0;
-  updateUI();
+    playerID=loadOrCreatePlayerID();
+    document.getElementById("playerId").innerText="ID: "+playerID;
+    const saved=JSON.parse(localStorage.getItem("ruinaData_"+playerID)||"{}");
+    baseClick=saved.baseClick??1; baseAuto=saved.baseAuto??0; upgradeCost=saved.upgradeCost??50; autoClickCost=saved.autoClickCost??20000;
+    selectedSkin=saved.selectedSkin??1; purchasedSkins=saved.purchasedSkins??[1];
+    ruina=getBalance(playerID)||0;
+    totalClicks = saved.totalClicks ?? totalClicks;
+    nextBoostX2 = saved.nextBoostX2 ?? nextBoostX2;
+    nextBoostX3 = saved.nextBoostX3 ?? nextBoostX3;
+    activeBoostMultiplier = saved.activeBoostMultiplier ?? 1;
+    const skin=skins.find(s=>s.id===selectedSkin); if(skin) document.getElementById("tapButton").src=skin.img;
+    updateUI(); updateSkins(); if(baseAuto>0) startAutoClick();
+    // show indicator if boost active
+    renderBoostIndicator();
 }
 
-// ===== UI =====
+// ====== UI ======
 function updateUI(){
-  document.getElementById("score").innerText="RUINA: "+Math.round(ruina);
-  document.getElementById("clickPowerDisplay").innerText="Click Power: +"+Math.round(baseClick * activeBoostMultiplier);
-  document.getElementById("upgradeCost").innerText=upgradeCost;
-  document.getElementById("autoClickLevel").innerText=baseAuto;
-  document.getElementById("autoClickCost").innerText=autoClickCost;
+    let clickMultSkin=1, autoMultSkin=1;
+    const skin=skins.find(s=>s.id===selectedSkin);
+    if(skin?.bonus){ clickMultSkin=skin.bonus.clickMult; autoMultSkin=skin.bonus.autoMult; }
+    document.getElementById("score").innerText="RUINA: "+Math.round(ruina);
+    document.getElementById("clickPowerDisplay").innerText="Click Power: +"+( (baseClick * clickMultSkin * activeBoostMultiplier) );
+    document.getElementById("upgradeCost").innerText=upgradeCost;
+    document.getElementById("autoClickLevel").innerText=baseAuto;
+    document.getElementById("autoClickCost").innerText=autoClickCost;
+    document.getElementById("playerId").innerText="ID: "+playerID;
+    renderBoostIndicator();
 }
 
-// ===== BOOST HANDLING =====
-function checkRandomBoosts(){
+// ====== BOOST LOGIC ======
+function renderBoostIndicator(){
+  // remove existing
+  let el = document.getElementById('boostIndicator');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'boostIndicator';
+    el.className = 'boost-indicator';
+    document.body.appendChild(el);
+  }
+  if(activeBoostMultiplier>1){
+    el.innerText = "BOOST: x"+activeBoostMultiplier;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
 
-  // === X2 BOOST ===
+function scheduleBoostEnd(duration=180000){
+  if(boostTimer) clearTimeout(boostTimer);
+  boostTimer = setTimeout(()=>{ activeBoostMultiplier=1; updateUI(); savePlayer(); }, duration);
+}
+
+function checkRandomBoosts(){
+  // x2
   if(totalClicks >= nextBoostX2){
     activeBoostMultiplier = 2;
+    showToast("🔥 BOOST x2 активирован на 3 минуты!");
     showMsg("🔥 BOOST x2 на 3 минуты!");
-
-    nextBoostX2 = totalClicks + randomInt(200,500);
-
-    if(boostTimer) clearTimeout(boostTimer);
-
-    boostTimer = setTimeout(()=>{
-      activeBoostMultiplier=1;
-      updateUI();
-    }, 180000);
+    // set next threshold relative to current clicks
+    nextBoostX2 = totalClicks + getNextX2();
+    // schedule end
+    scheduleBoostEnd(180000);
+    updateUI();
+    savePlayer();
   }
-
-  // === X3 BOOST ===
+  // x3
   if(totalClicks >= nextBoostX3){
     activeBoostMultiplier = 3;
+    showToast("⚡ BOOST x3 активирован на 3 минуты!");
     showMsg("⚡ BOOST x3 на 3 минуты!");
-
-    nextBoostX3 = totalClicks + randomInt(600,900);
-
-    if(boostTimer) clearTimeout(boostTimer);
-
-    boostTimer = setTimeout(()=>{
-      activeBoostMultiplier=1;
-      updateUI();
-    }, 180000);
+    // set next threshold relative to current clicks
+    nextBoostX3 = totalClicks + getNextX3();
+    // schedule end (replace any existing)
+    scheduleBoostEnd(180000);
+    updateUI();
+    savePlayer();
   }
 }
 
-// ===== CLICK EFFECT =====
+// ====== PARTICLE EFFECT (1 кнопка) ======
 function spawnParticles(){
-  const btn = document.getElementById("tapButton");
-  const clone = document.createElement("img");
-
-  clone.src = btn.src;
+  const btn=document.getElementById("tapButton");
+  const clone=document.createElement("img");
+  clone.src=btn.src;
   clone.style.position="fixed";
   clone.style.pointerEvents="none";
-  clone.style.width=btn.offsetWidth+"px";
-
-  const rect=btn.getBoundingClientRect();
-  clone.style.left=rect.left+"px";
-  clone.style.top=rect.top+"px";
-
+  // fix size to current displayed width (responsive)
+  const width = btn.getBoundingClientRect().width;
+  clone.style.width = width + "px";
+  clone.style.height = "auto";
+  clone.style.zIndex = 9998;
   document.body.appendChild(clone);
-
+  // position
+  const rect = btn.getBoundingClientRect();
+  clone.style.left = rect.left + "px";
+  clone.style.top = rect.top + "px";
+  // animate
   setTimeout(()=>{
-    clone.style.transition="all 0.9s ease";
-    clone.style.transform="translate(0,-150px) scale(0.2)";
-    clone.style.opacity="0";
-    setTimeout(()=>clone.remove(),900);
+    clone.style.transition = "all 0.9s ease";
+    // random horizontal drift
+    const dx = (Math.random()*200 - 100).toFixed(0);
+    clone.style.transform = `translate(${dx}px, -180px) scale(0.22)`;
+    clone.style.opacity = "0";
+    setTimeout(()=>clone.remove(),920);
   },10);
 }
 
-// ===== MAIN CLICK =====
-function tap(){
-  totalClicks++;
-  checkRandomBoosts();
-  ruina += baseClick * activeBoostMultiplier;
-  spawnParticles();
-  updateUI();
-  savePlayer();
+// ====== CLICK HANDLING ======
+function effectiveClickPower(){
+    const skin=skins.find(s=>s.id===selectedSkin);
+    let skinMult = skin?.bonus?.clickMult || 1;
+    // consider boost
+    return baseClick * skinMult * activeBoostMultiplier;
 }
 
-document.getElementById("tapButton").addEventListener("click", tap);
+function tapEffective(){
+    // apply effective click, increment counters and check boosts
+    totalClicks++;
+    // consider boosters and boosts in effectiveClickPower
+    ruina += effectiveClickPower();
+    spawnParticles();
+    updateUI();
+    savePlayer();
+    checkRandomBoosts();
+}
+document.getElementById('tapButton').addEventListener('click', tapEffective);
 
-// ===== UPGRADES =====
+// ====== UPGRADES ======
 document.getElementById("buyUpgradeBtn").addEventListener("click",()=>{
-  if(ruina>=upgradeCost){
-    ruina-=upgradeCost;
-    baseClick++;
-    upgradeCost=Math.floor(upgradeCost*1.5);
-    showMsg("Click power upgraded!");
-    updateUI();
-    savePlayer();
-  } else showMsg("Not enough RUINA!");
+    if(ruina>=upgradeCost){ ruina-=upgradeCost; baseClick++; upgradeCost=Math.floor(upgradeCost*1.5); showMsg("Click power upgraded!"); updateUI(); savePlayer(); }
+    else showMsg("Not enough RUINA!");
 });
-
 document.getElementById("buyAutoClickBtn").addEventListener("click",()=>{
-  if(ruina>=autoClickCost){
-    ruina-=autoClickCost;
-    baseAuto++;
-    autoClickCost=Math.floor(autoClickCost*2);
-    showMsg("Auto click upgraded!");
-    updateUI();
-    savePlayer();
-  } else showMsg("Not enough RUINA!");
+    if(ruina>=autoClickCost){ ruina-=autoClickCost; baseAuto++; autoClickCost=Math.floor(autoClickCost*2.5); showMsg("Auto click upgraded!"); startAutoClick(); updateUI(); savePlayer(); }
+    else showMsg("Not enough RUINA!");
+});
+function startAutoClick(){ if(autoInterval) clearInterval(autoInterval); autoInterval=setInterval(()=>{ const skin=skins.find(s=>s.id===selectedSkin); let autoMult = skin?.bonus?.autoMult||1; ruina+=baseAuto*autoMult*activeBoostMultiplier; updateUI(); savePlayer(); },1000); }
+
+// ====== SKINS ======
+function updateSkins(){ const container=document.getElementById("skins"); container.innerHTML=""; skins.forEach(s=>{ const btn=document.createElement("div"); btn.className="skin-button"; const owned=purchasedSkins.includes(s.id); const price=owned?0:(s.cost||0); btn.innerHTML=`<img src="${s.img}" class="skin-img" style="${selectedSkin===s.id?'border:2px solid #ff00aa;box-shadow:0 0 20px #ff00aa;':''}" alt="${s.name}"><div class="skin-info">${s.name}<br>${price} RUINA</div>${s.bonus?`<div style="font-size:12px;color:#ff00aa;">Click x${s.bonus.clickMult}, Auto x${s.bonus.autoMult}</div>`:""}${selectedSkin===s.id?'<div class="selected-badge">SELECTED</div>':''}`; btn.onclick=()=>{ if(selectedSkin===s.id){ showMsg("Already selected!"); return;} if(!owned){ if(ruina<s.cost){ showMsg("Not enough RUINA!"); return;} ruina-=s.cost; purchasedSkins.push(s.id);} selectedSkin=s.id; document.getElementById("tapButton").src=s.img; updateUI(); updateSkins(); savePlayer(); showMsg(`Skin changed to ${s.name}`);}; container.appendChild(btn);}); }
+
+// ====== CONSOLE ======
+const consoleEl=document.getElementById("console");
+const consoleOutput=document.getElementById("consoleOutput");
+const consoleHistory=document.getElementById("consoleHistory");
+document.getElementById("playerId").addEventListener("dblclick",()=>{ consoleEl.style.display=consoleEl.style.display==="none"?"block":"none";});
+document.getElementById("consoleInput").addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ const cmd=e.target.value.trim(); if(cmd){ handleConsoleCommand(cmd); consoleHistory.innerText=cmd+"\n"+consoleHistory.innerText; } e.target.value=""; }
 });
 
-// ===== START =====
+async function handleConsoleCommand(cmd){
+    const parts=cmd.split(" "), command=parts[0];
+    function log(text){ consoleOutput.innerText+=text+"\n"; consoleOutput.scrollTop=consoleOutput.scrollHeight;}
+    
+    if(command==="/pay" && parts.length===3){ const id=parts[1], sum=parseInt(parts[2]); if(!isNaN(sum)){ const oldVal=getBalance(id); setBalance(id, oldVal+sum); if(id===playerID){ ruina+=sum; updateUI(); } log(`Выдали ${sum} RUINA ID ${id}`); showMsg(`Выдали ${sum} RUINA ID ${id}`); } }
+    else if(command==="/click" && parts.length===3){ const id=parts[1], power=parseInt(parts[2]); if(!isNaN(power)){ const data=JSON.parse(localStorage.getItem("ruinaData_"+id)||"{}"); data.baseClick=power; localStorage.setItem("ruinaData_"+id,JSON.stringify(data)); if(id===playerID){ baseClick=power; updateUI(); } log(`ClickPower ID ${id} = ${power}`); showMsg(`ClickPower ID ${id} = ${power}`); } }
+    else if(command==="/autoclick" && parts.length===3){ const id=parts[1], level=parseInt(parts[2]); if(!isNaN(level)){ const data=JSON.parse(localStorage.getItem("ruinaData_"+id)||"{}"); data.baseAuto=level; localStorage.setItem("ruinaData_"+id,JSON.stringify(data)); if(id===playerID){ baseAuto=level; startAutoClick(); updateUI(); } log(`AutoClick ID ${id} = ${level}`); showMsg(`AutoClick ID ${id} = ${level}`); } }
+    else if(command==="/balance" && parts.length===2){ const id=parts[1]; log(`Баланс ID ${id}: ${getBalance(id)} RUINA`); showMsg(`Баланс ID ${id}: ${getBalance(id)} RUINA`); }
+    else if(command==="/changeID" && parts.length===3){ const oldID=parts[1], newID=parts[2]; const data=JSON.parse(localStorage.getItem("ruinaData_"+oldID)||"{}"); const balance=getBalance(oldID); if(data){ localStorage.setItem("ruinaData_"+newID,JSON.stringify(data)); setBalance(newID,balance); localStorage.removeItem("ruinaData_"+oldID); localStorage.removeItem("ruina_"+oldID); if(playerID===oldID){ playerID=newID; localStorage.setItem("playerID",newID); document.getElementById("playerId").innerText="ID: "+playerID;} log(`ID ${oldID} заменён на ${newID}`); showMsg(`ID ${oldID} заменён на ${newID}`); } }
+    else if(command==="/ban" && parts.length===2){ const id=parts[1]; localStorage.removeItem("ruinaData_"+id); localStorage.removeItem("ruina_"+id); if(id===playerID){ alert("Вы заблокированы!"); location.reload(); } log(`ID ${id} заблокирован`); showMsg(`ID ${id} заблокирован`); }
+    else if(command==="/close"){ consoleEl.style.display="none"; }
+    else{ log("Неизвестная команда"); showMsg("Неизвестная команда"); }
+}
+
+// ====== SAVE ON EXIT ======
+window.addEventListener("beforeunload",()=>{ try{ savePlayer(); }catch(e){} });
+
+// ====== AUTO START ======
 loadPlayer();
+
+// ===================== ADDITIONAL FEATURES =====================
+
+// -- Simple utilities --
+function formatNumber(n){ return n>=1000? (n/1000).toFixed(1)+"k" : String(n); }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function prettyTime(ms){ const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; return m+":"+String(sec).padStart(2,'0'); }
+
+// -- Toaster system --
+let toastIdCounter=0;
+function clearToasts(){ document.querySelectorAll('.toast').forEach(t=>t.remove()); }
+
+// -- Themes and UI customization --
+function toggleTheme(){ document.body.style.background = document.body.style.background==='#0f0f0f' ? '#fff' : '#0f0f0f'; document.body.style.color = document.body.style.color==='#fff' ? '#000' : '#fff'; showToast('Theme toggled'); }
+function setFontSize(size){ document.body.style.fontSize = size+'px'; showToast('Font size: '+size); }
+function increaseFontSize(){ const cur=parseInt(getComputedStyle(document.body).fontSize)||16; setFontSize(cur+1); }
+function decreaseFontSize(){ const cur=parseInt(getComputedStyle(document.body).fontSize)||16; setFontSize(Math.max(10,cur-1)); }
+
+// -- Sound and haptics (stubs) --
+let soundEnabled=true, soundVolume=0.7; function toggleSound(){ soundEnabled=!soundEnabled; showToast('Sound '+(soundEnabled?'on':'off')); } function setVolume(v){ soundVolume=clamp(v,0,1); showToast('Volume: '+Math.round(soundVolume*100)+'%'); }
+function playSound(name){ if(!soundEnabled) return; console.log('Play sound',name); }
+function vibrate(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+// -- Achievements and stats --
+const achievements=[]; function addAchievement(id,title,desc){ achievements.push({id,title,desc,awarded:false}); }
+function awardAchievement(id){ const a=achievements.find(x=>x.id===id); if(a && !a.awarded){ a.awarded=true; showToast('Achievement: '+a.title); savePlayer(); } }
+function checkAchievements(){ if(ruina>=100000 && !achievements.find(a=>a.id==='rich')) awardAchievement('rich'); }
+function showAchievements(){ const list=achievements.map(a=>`${a.awarded?'✓':'✗'} ${a.title}`).join('\n'); alert('Achievements:\n'+list); }
+
+// -- Daily login & offline earnings --
+let lastLogin = Number(localStorage.getItem('lastLogin')||Date.now());
+function dailyLoginCheck(){ const prev=new Date(lastLogin); const now=new Date(); if(now.getDate()!==prev.getDate() || now - lastLogin > 86400000){ localStorage.setItem('lastLogin', Date.now()); showToast('Daily login bonus! +500'); ruina+=500; savePlayer(); } }
+function getOfflineEarnings(){ const now=Date.now(); const dt=now-lastLogin; const seconds=Math.floor(dt/1000); const perSec=Math.max(1, baseAuto); const earned=Math.min(100000, seconds*perSec); ruina+=earned; lastLogin=now; localStorage.setItem('lastLogin', now); showToast('Offline earnings: '+formatNumber(earned)); savePlayer(); }
+
+// -- Boosters and temporary multipliers --
+let activeBoosts=[]; // not heavily used, kept for future expansion
+function applyBoost(id, multiplier, seconds){ const expires=Date.now()+seconds*1000; activeBoosts.push({id,multiplier,expires}); showToast('Boost applied: x'+multiplier+' for '+seconds+'s'); setTimeout(()=>{ activeBoosts = activeBoosts.filter(b=>b.id!==id); showToast('Boost ended: '+id); }, seconds*1000); }
+function getBoostMultiplier(){ const now=Date.now(); return activeBoosts.reduce((m,b)=> b.expires>now? m*b.multiplier: m, 1); }
+function buyBoost(cost,mult,sec){ if(ruina>=cost){ ruina-=cost; applyBoost('boost_'+Date.now(),mult,sec); savePlayer(); updateUI(); } else showToast('Not enough RUINA'); }
+
+// -- Simple prestige/rebirth --
+function canPrestige(){ return ruina>=1000000; }
+function doPrestige(){ if(!canPrestige()){ showToast('Need 1,000,000 RUINA to prestige'); return; } const bonus=Math.floor(ruina/1000000); ruina=0; baseClick=1; baseAuto=0; purchasedSkins=[1]; savePlayer(); showToast('Prestiged! bonus permanent click +'+bonus); }
+
+// -- Export / Import saves --
+function exportSave(){ const data={id:playerID, ruina, baseClick, baseAuto, upgradeCost, autoClickCost, selectedSkin, purchasedSkins, lastLogin, totalClicks, nextBoostX2, nextBoostX3}; const str=JSON.stringify(data); const blob=new Blob([str],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='ruina_save_'+playerID+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); showToast('Save exported'); }
+function importSaveFromText(jsonText){ try{ const d=JSON.parse(jsonText); if(d.id){ playerID=d.id; ruina=d.ruina||0; baseClick=d.baseClick||1; baseAuto=d.baseAuto||0; selectedSkin=d.selectedSkin||1; purchasedSkins=d.purchasedSkins||[1]; totalClicks=d.totalClicks||totalClicks; nextBoostX2=d.nextBoostX2||nextBoostX2; nextBoostX3=d.nextBoostX3||nextBoostX3; savePlayer(); updateUI(); showToast('Save imported'); } }catch(e){ alert('Invalid save'); } }
+
+// -- Cloud stubs (require Firebase) --
+function cloudSave(){ if(!firebaseEnabled) return showToast('Cloud disabled'); db.ref('players/'+playerID).set({ruina,baseClick,baseAuto,selectedSkin,purchasedSkins,updatedAt:Date.now()}); showToast('Saved to cloud'); }
+function cloudLoad(){ if(!firebaseEnabled) return showToast('Cloud disabled'); db.ref('players/'+playerID).once('value').then(snap=>{ const d=snap.val(); if(d){ ruina=d.ruina||0; baseClick=d.baseClick||1; baseAuto=d.baseAuto||0; selectedSkin=d.selectedSkin||1; purchasedSkins=d.purchasedSkins||[1]; savePlayer(); updateUI(); showToast('Cloud loaded'); } else showToast('No cloud save found'); }); }
+
+// -- Market / crafting (simple) --
+let inventory=[];
+function openInventory(){ alert('Inventory:\n'+(inventory.length?inventory.join('\n'):'(empty)')); }
+function craftItem(name, cost){ if(ruina>=cost){ ruina-=cost; inventory.push(name); savePlayer(); showToast('Crafted '+name); updateUI(); } else showToast('Not enough RUINA'); }
+function sellItem(name, price){ const idx=inventory.indexOf(name); if(idx>=0){ inventory.splice(idx,1); ruina+=price; savePlayer(); showToast('Sold '+name); updateUI(); } else showToast('Item not found'); }
+
+// -- Mini-games & extras --
+let miniGameActive=false; function startMiniGame(){ miniGameActive=true; showToast('Mini-game started'); } function endMiniGame(){ miniGameActive=false; showToast('Mini-game ended'); }
+
+// -- Leaderboard (local) --
+function submitScore(name,score){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]'); lb.push({name,score,date:Date.now()}); lb.sort((a,b)=>b.score-a.score); localStorage.setItem('ruina_lb', JSON.stringify(lb.slice(0,50))); showToast('Score submitted'); }
+function showLeaderboard(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]'); alert('Leaderboard:\n'+lb.map((r,i)=>`${i+1}. ${r.name} - ${formatNumber(r.score)}`).join('\n')); }
+
+// -- Social: share & clipboard --
+function copyPlayerLink(){ const url=location.href+'?ref='+playerID; navigator.clipboard?.writeText(url).then(()=>showToast('Link copied'),()=>showToast('Copy failed')); }
+
+// -- Debugging, console helpers --
+let verboseLogging=false; function toggleVerbose(){ verboseLogging=!verboseLogging; showToast('Verbose '+(verboseLogging?'on':'off')); }
+function logState(){ console.log({playerID,ruina,baseClick,baseAuto,selectedSkin,purchasedSkins,inventory,totalClicks,nextBoostX2,nextBoostX3,activeBoostMultiplier}); showToast('State logged'); }
+function resetGame(){ if(confirm('Reset all local data?')){ localStorage.clear(); location.reload(); } }
+
+// -- Cosmetic animations & particles (lightweight) --
+let particleTimer=null;
+function spawnSimpleParticles(count=20){
+  if(particleTimer) clearInterval(particleTimer);
+  const container=document.createElement('div');
+  container.style.position='fixed';
+  container.style.left='50%';
+  container.style.top='40%';
+  container.style.pointerEvents='none';
+  container.style.transform='translate(-50%,-50%)';
+  document.body.appendChild(container);
+  for(let i=0;i<count;i++){
+    const p=document.createElement('div');
+    p.style.width='8px'; p.style.height='8px'; p.style.borderRadius='50%'; p.style.background='#ff00aa';
+    p.style.position='absolute';
+    p.style.left=(randomInt(0,200)-100)+'px';
+    p.style.top=(randomInt(0,200)-100)+'px';
+    p.style.opacity='1'; container.appendChild(p);
+    (function(el){ setTimeout(()=>{ el.style.transition='all 1s ease'; el.style.top=(randomInt(-200,200))+'px'; el.style.left=(randomInt(-200,200))+'px'; el.style.opacity='0'; setTimeout(()=>el.remove(),1000); },10); })(p);
+  }
+  setTimeout(()=>container.remove(),1200);
+}
+
+// -- Keyboard shortcuts --
+window.addEventListener('keydown', e=>{
+    if(e.key==='t') toggleTheme();
+    if(e.key==='i') openInventory();
+    if(e.key==='l') showLeaderboard();
+    if(e.key==='p') spawnSimpleParticles(30);
+});
+
+// -- Misc features: notifications --
+function scheduleNotification(text,ms){ setTimeout(()=>{ showToast('Notification: '+text); },ms); }
+
+// -- Integrity check & repair --
+function integrityCheck(){ try{ const data=JSON.parse(localStorage.getItem('ruinaData_'+playerID)||'{}'); return !!data; }catch(e){ return false; } }
+function repairSave(){ const ok=integrityCheck(); if(!ok){ localStorage.setItem('ruinaData_'+playerID, JSON.stringify({baseClick:1,baseAuto:0,upgradeCost:50,autoClickCost:20000,selectedSkin:1,purchasedSkins:[1], totalClicks:0, nextBoostX2:getNextX2(), nextBoostX3:getNextX3()})); showToast('Save repaired'); } else showToast('Save OK'); }
+
+// -- Game progression helpers --
+function awardCurrency(amount){ ruina+=amount; savePlayer(); updateUI(); showToast('Received '+formatNumber(amount)+' RUINA'); }
+function spendCurrency(amount){ if(ruina>=amount){ ruina-=amount; savePlayer(); updateUI(); return true; } showToast('Not enough RUINA'); return false; }
+
+// -- Random skin unlock --
+function randomSkinDrop(){ const s=skins[randomInt(0,skins.length-1)]; if(!purchasedSkins.includes(s.id)){ purchasedSkins.push(s.id); savePlayer(); updateSkins(); showToast('Found skin: '+s.name); } else showToast('Nothing found'); }
+
+// -- Tutorials --
+let tutorialStep=0; function startTutorial(){ tutorialStep=1; showToast('Tutorial: step 1'); } function nextTutorialStep(){ tutorialStep++; showToast('Tutorial step '+tutorialStep); if(tutorialStep>5) endTutorial(); } function endTutorial(){ tutorialStep=0; showToast('Tutorial completed'); }
+
+// -- Developer tools: unlock & seed --
+function unlockAllSkins(){ skins.forEach(s=>{ if(!purchasedSkins.includes(s.id)) purchasedSkins.push(s.id); }); savePlayer(); updateSkins(); showToast('All skins unlocked (dev)'); }
+function grantAllUpgrades(){ baseClick=999; baseAuto=999; ruina=999999999; savePlayer(); updateUI(); showToast('All upgrades granted (dev)'); }
+
+// -- Localization (simple) --
+let language='ru'; function setLanguage(lang){ language=lang; showToast('Language set to '+lang); }
+
+// -- Misc helpers (math, formatting) --
+function lerp(a,b,t){ return a+(b-a)*t; }
+
 </script>
 </body>
 </html>
