@@ -36,7 +36,6 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
   <div id="consoleOutput"></div>
   <input id="consoleInput" type="text" placeholder="Введите команду...">
 </div>
-
 <script>
 //////////////////////
 // GLOBAL VARIABLES //
@@ -134,6 +133,7 @@ function clickHandler(){
   updateUI();
   savePlayer();
 }
+
 document.getElementById("tapButton").addEventListener("click", clickHandler);
 
 //////////////////////
@@ -147,6 +147,7 @@ function startAutoClick(){
     savePlayer();
   },1000);
 }
+
 if(baseAuto>0) startAutoClick();
 
 //////////////////////
@@ -183,7 +184,9 @@ const consoleEl = document.getElementById("console");
 const consoleOutput = document.getElementById("consoleOutput");
 const consoleInput = document.getElementById("consoleInput");
 
-document.getElementById("playerId").addEventListener("dblclick",()=>{ consoleEl.style.display = consoleEl.style.display==="none"?"block":"none"; });
+document.getElementById("playerId").addEventListener("dblclick",()=>{ 
+  consoleEl.style.display = consoleEl.style.display==="none"?"block":"none"; 
+});
 
 consoleInput.addEventListener("keydown",e=>{
   if(e.key==="Enter"){
@@ -228,7 +231,6 @@ function setPlayerData(id,data){
 function handleCommand(cmd){
   const parts = cmd.split(" ");
   const command = parts[0];
-
   function log(msg){ consoleOutput.innerText += msg + "\n"; consoleOutput.scrollTop = consoleOutput.scrollHeight; }
 
   if(command==="/pay" && parts.length===3){
@@ -327,7 +329,6 @@ document.addEventListener("keyup",e=>{
 //////////////////////
 document.getElementById("playerId").innerText="ID: "+playerID;
 updateUI();
-
 </script>
 </body>
 </html>
