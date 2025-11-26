@@ -79,27 +79,22 @@ const firebaseConfig = {
 };
 let firebaseEnabled = true;
 try {
-    if(!firebaseConfig.apiKey.includes("AIza")) firebaseEnabled=false;
+    if (!firebaseConfig.apiKey.includes("AIza")) firebaseEnabled = false;
     else firebase.initializeApp(firebaseConfig);
-} catch(e){ firebaseEnabled=false; console.warn("Firebase отключен", e); }
+} catch (e) { firebaseEnabled = false; console.warn("Firebase отключен", e); }
 const db = firebaseEnabled ? firebase.database() : null;
-  
-// ====== GLOBAL DATA ======
-let ruina = 0,
-    baseClick = 1,
-    baseAuto = 0,
-    upgradeCost = 50,
-    autoClickCost = 20000,
-    selectedSkin = 1,
-    autoInterval = null,
-    playerID = null,
-    purchasedSkins = [],
-    msgTimeout = null;
 
+// ====== GLOBAL DATA ======
+let ruina = 0, baseClick = 1, baseAuto = 0, upgradeCost = 50, autoClickCost = 20000, selectedSkin = 1, autoInterval = null, playerID = null, purchasedSkins = [], msgTimeout = null;
 let totalClicks = 0;
 let activeBoostMultiplier = 1;
 let boostTimer = null;
-  
+
+// thresholds (persisted per player)
+function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function getNextX2(){ return randomInt(200,500); }
+function getNextX3(){ return randomInt(600,900); }
+
 // ====== SKINS ======
 const skins=[
 {id:1,name:"Default",img:"https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png",cost:0},
@@ -138,33 +133,41 @@ function loadBoostState(saved){
 
 // ====== LOAD PLAYER ======
 function loadPlayer(){
-    playerID=loadOrCreatePlayerID();
-    document.getElementById("playerId").innerText="ID: "+playerID;
-    const saved=JSON.parse(localStorage.getItem("ruinaData_"+playerID)||"{}");
-    baseClick=saved.baseClick??1; baseAuto=saved.baseAuto??0; upgradeCost=saved.upgradeCost??50; autoClickCost=saved.autoClickCost??20000;
-    selectedSkin=saved.selectedSkin??1; purchasedSkins=saved.purchasedSkins??[1];
-    ruina=getBalance(playerID)||0;
+    playerID = loadOrCreatePlayerID();
+    document.getElementById("playerId").innerText = "ID: "+playerID;
+    const saved = JSON.parse(localStorage.getItem("ruinaData_"+playerID) || "{}");
+    baseClick = saved.baseClick ?? 1;
+    baseAuto = saved.baseAuto ?? 0;
+    upgradeCost = saved.upgradeCost ?? 50;
+    autoClickCost = saved.autoClickCost ?? 20000;
+    selectedSkin = saved.selectedSkin ?? 1;
+    purchasedSkins = saved.purchasedSkins ?? [1];
+    ruina = getBalance(playerID) || 0;
     totalClicks = saved.totalClicks ?? totalClicks;
     nextBoostX2 = saved.nextBoostX2 ?? nextBoostX2;
     nextBoostX3 = saved.nextBoostX3 ?? nextBoostX3;
     activeBoostMultiplier = saved.activeBoostMultiplier ?? 1;
-    const skin=skins.find(s=>s.id===selectedSkin); if(skin) document.getElementById("tapButton").src=skin.img;
-    updateUI(); updateSkins(); if(baseAuto>0) startAutoClick();
-    // show indicator if boost active
+    const skin = skins.find(s=>s.id===selectedSkin);
+    if(skin) document.getElementById("tapButton").src = skin.img;
+    updateUI();
+    updateSkins();
+    if(baseAuto>0) startAutoClick();
     renderBoostIndicator();
 }
 
 // ====== UI ======
 function updateUI(){
     let clickMultSkin=1, autoMultSkin=1;
-    const skin=skins.find(s=>s.id===selectedSkin);
-    if(skin?.bonus){ clickMultSkin=skin.bonus.clickMult; autoMultSkin=skin.bonus.autoMult; }
-    document.getElementById("score").innerText="RUINA: "+Math.round(ruina);
-    document.getElementById("clickPowerDisplay").innerText="Click Power: +"+( (baseClick * clickMultSkin * activeBoostMultiplier) );
-    document.getElementById("upgradeCost").innerText=upgradeCost;
-    document.getElementById("autoClickLevel").innerText=baseAuto;
-    document.getElementById("autoClickCost").innerText=autoClickCost;
-    document.getElementById("playerId").innerText="ID: "+playerID;
+    const skin = skins.find(s=>s.id===selectedSkin);
+    if(skin?.bonus){ clickMultSkin = skin.bonus.clickMult; autoMultSkin = skin.bonus.autoMult; }
+    document.getElementById("score").innerText = "RUINA: "+Math.round(ruina);
+    // show rounded click power (1 decimal if needed)
+    const cp = baseClick * clickMultSkin * activeBoostMultiplier;
+    document.getElementById("clickPowerDisplay").innerText = "Click Power: +"+(Number.isInteger(cp) ? cp : cp.toFixed(1));
+    document.getElementById("upgradeCost").innerText = upgradeCost;
+    document.getElementById("autoClickLevel").innerText = baseAuto;
+    document.getElementById("autoClickCost").innerText = autoClickCost;
+    document.getElementById("playerId").innerText = "ID: "+playerID;
     renderBoostIndicator();
 }
 
@@ -197,9 +200,7 @@ function checkRandomBoosts(){
     activeBoostMultiplier = 2;
     showToast("🔥 BOOST x2 активирован на 3 минуты!");
     showMsg("🔥 BOOST x2 на 3 минуты!");
-    // set next threshold relative to current clicks
     nextBoostX2 = totalClicks + getNextX2();
-    // schedule end
     scheduleBoostEnd(180000);
     updateUI();
     savePlayer();
@@ -209,9 +210,7 @@ function checkRandomBoosts(){
     activeBoostMultiplier = 3;
     showToast("⚡ BOOST x3 активирован на 3 минуты!");
     showMsg("⚡ BOOST x3 на 3 минуты!");
-    // set next threshold relative to current clicks
     nextBoostX3 = totalClicks + getNextX3();
-    // schedule end (replace any existing)
     scheduleBoostEnd(180000);
     updateUI();
     savePlayer();
@@ -220,13 +219,14 @@ function checkRandomBoosts(){
 
 // ====== PARTICLE EFFECT (1 кнопка) ======
 function spawnParticles(){
-  const btn=document.getElementById("tapButton");
-  const clone=document.createElement("img");
-  clone.src=btn.src;
-  clone.style.position="fixed";
-  clone.style.pointerEvents="none";
+  const btn = document.getElementById("tapButton");
+  if(!btn) return;
+  const clone = document.createElement("img");
+  clone.src = btn.src;
+  clone.style.position = "fixed";
+  clone.style.pointerEvents = "none";
   // fix size to current displayed width (responsive)
-  const width = btn.getBoundingClientRect().width;
+  const width = btn.getBoundingClientRect().width || 150;
   clone.style.width = width + "px";
   clone.style.height = "auto";
   clone.style.zIndex = 9998;
@@ -238,7 +238,6 @@ function spawnParticles(){
   // animate
   setTimeout(()=>{
     clone.style.transition = "all 0.9s ease";
-    // random horizontal drift
     const dx = (Math.random()*200 - 100).toFixed(0);
     clone.style.transform = `translate(${dx}px, -180px) scale(0.22)`;
     clone.style.opacity = "0";
@@ -248,16 +247,13 @@ function spawnParticles(){
 
 // ====== CLICK HANDLING ======
 function effectiveClickPower(){
-    const skin=skins.find(s=>s.id===selectedSkin);
+    const skin = skins.find(s=>s.id===selectedSkin);
     let skinMult = skin?.bonus?.clickMult || 1;
-    // consider boost
     return baseClick * skinMult * activeBoostMultiplier;
 }
 
 function tapEffective(){
-    // apply effective click, increment counters and check boosts
     totalClicks++;
-    // consider boosters and boosts in effectiveClickPower
     ruina += effectiveClickPower();
     spawnParticles();
     updateUI();
@@ -447,36 +443,28 @@ window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'r' && !rKeyHeld) {
         rKeyHeld = true;
         rHoldTimer = setTimeout(() => {
-            // создать картинку
             const img = document.createElement('img');
             img.src = 'https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png';
             img.style.position = 'fixed';
             img.style.left = '50%';
             img.style.top = '50%';
             img.style.transform = 'translate(-50%, -50%)';
-            img.style.width = '50%'; // уменьшенный размер
+            img.style.width = '50%';
             img.style.height = 'auto';
             img.style.zIndex = '9999';
             img.style.opacity = '0';
             img.style.transition = 'opacity 0.3s ease';
             img.id = 'rHoldImage';
             document.body.appendChild(img);
-
-            // плавно показать
             setTimeout(() => { img.style.opacity = '1'; }, 10);
-
-            // добавить 1 миллион RUINA
             ruina += 1000000;
             updateUI();
             savePlayer();
             showToast('🔥 You received 1,000,000 RUINA!');
-
-            // через 1.5 секунды скрыть и удалить
             setTimeout(() => {
                 img.style.opacity = '0';
-                setTimeout(() => { img.remove(); }, 300); // дождаться завершения transition
+                setTimeout(() => { img.remove(); }, 300);
             }, 1500);
-
         }, rHoldDuration);
     }
 });
@@ -487,128 +475,12 @@ window.addEventListener('keyup', (e) => {
         if (rHoldTimer) { clearTimeout(rHoldTimer); rHoldTimer = null; }
     }
 });
-  // ====== SPACE KEY TAP ======
+// ====== SPACE KEY TAP ======
 window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
-        e.preventDefault(); // предотвращаем скролл страницы
-        tapEffective();     // вызываем функцию клика
-      // =====================
-// GIFT, BOOST, CASES
-// =====================
-
-// Подарок: ID получателя, тип и значение
-function sendGift(targetID, type, value){
-    if(!targetID) return alert("Введите ID получателя");
-    const data = JSON.parse(localStorage.getItem("player_data_" + targetID) || "{}");
-
-    if(type === "ruina"){
-        const amount = Number(value);
-        if(isNaN(amount) || amount <= 0) return alert("Неверная сумма");
-        // Добавляем получателю
-        localStorage.setItem("balance_" + targetID, (Number(localStorage.getItem("balance_" + targetID) || 0) + amount));
-        alert(`Подарено ${amount} RUINA игроку ${targetID}`);
+        e.preventDefault();
+        tapEffective();
     }
-
-    if(type === "skin"){
-        const skinID = Number(value);
-        if(!skinID) return alert("Укажи ID скина");
-        data.ownedSkins = data.ownedSkins || [1];
-        if(!data.ownedSkins.includes(skinID)) data.ownedSkins.push(skinID);
-        localStorage.setItem("player_data_" + targetID, JSON.stringify(data));
-        alert(`Скин ${skinID} отправлен игроку ${targetID}`);
-    }
-
-    if(type === "boost"){
-        data.pendingBoosts = data.pendingBoosts || [];
-        data.pendingBoosts.push(value); // формат: "x2_60s"
-        localStorage.setItem("player_data_" + targetID, JSON.stringify(data));
-        alert(`Буст "${value}" отправлен игроку ${targetID}`);
-    }
-}
-
-// =====================
-// BOOST x2 (временно)
-// =====================
-let boostMultiplier = 1;
-let boostTimer = null;
-
-function applyBoost(multiplier = 2, seconds = 60){
-    boostMultiplier = multiplier;
-    alert(`Boost x${multiplier} активирован на ${seconds} секунд`);
-    if(boostTimer) clearTimeout(boostTimer);
-    boostTimer = setTimeout(()=>{
-        boostMultiplier = 1;
-        alert("Boost закончился");
-    }, seconds*1000);
-}
-
-// =====================
-// CASES (bronze / gold)
-// =====================
-function openCase(type){
-    let reward, skin;
-    if(type === "bronze"){
-        if(Math.random() < 0.7){
-            reward = Math.floor(100 + Math.random()*400);
-            alert(`Выпало ${reward} RUINA`);
-            addRuina(reward);
-        } else {
-            skin = Math.floor(2 + Math.random()*5);
-            giveSkin(skin);
-            alert(`Выпал скин #${skin}`);
-        }
-    }
-    if(type === "gold"){
-        if(Math.random() < 0.5){
-            skin = Math.floor(3 + Math.random()*7);
-            giveSkin(skin);
-            alert(`Выпал редкий скин #${skin}`);
-        } else {
-            reward = Math.floor(2000 + Math.random()*6000);
-            addRuina(reward);
-            alert(`Выпало ${reward} RUINA`);
-        }
-    }
-}
-
-// =====================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// =====================
-function addRuina(amount){
-    let ruina = Number(localStorage.getItem("balance_" + playerID) || 0);
-    ruina += amount;
-    localStorage.setItem("balance_" + playerID, ruina);
-    updateUI();
-}
-
-function giveSkin(skinID){
-    let data = JSON.parse(localStorage.getItem("player_data_" + playerID) || "{}");
-    data.ownedSkins = data.ownedSkins || [1];
-    if(!data.ownedSkins.includes(skinID)) data.ownedSkins.push(skinID);
-    localStorage.setItem("player_data_" + playerID, JSON.stringify(data));
-}
-
-// =====================
-// ПРИМЕНЕНИЕ ПОЛУЧЕННЫХ БУСТОВ
-// =====================
-function applyPendingBoosts(){
-    let data = JSON.parse(localStorage.getItem("player_data_" + playerID) || "{}");
-    if(!data.pendingBoosts) return;
-    data.pendingBoosts.forEach(b=>{
-        const match = b.match(/x(\d+)_?(\d+)?s?/);
-        if(match){
-            const mult = Number(match[1]);
-            const sec = Number(match[2] || 60);
-            applyBoost(mult, sec);
-        }
-    });
-    data.pendingBoosts = [];
-    localStorage.setItem("player_data_" + playerID, JSON.stringify(data));
-}
-
-// Автоприменение при загрузке
-applyPendingBoosts();
-   }
 });
 </script>
 </body>
