@@ -83,18 +83,23 @@ try {
     else firebase.initializeApp(firebaseConfig);
 } catch(e){ firebaseEnabled=false; console.warn("Firebase отключен", e); }
 const db = firebaseEnabled ? firebase.database() : null;
-
+  
 // ====== GLOBAL DATA ======
-let ruina=0, baseClick=1, baseAuto=0, upgradeCost=50, autoClickCost=20000, selectedSkin=1, autoInterval=null, playerID=null, purchasedSkins=[], msgTimeout=null;
-let totalClicks = 0;ф
-le activeBoostMultiplier = 1;
+let ruina = 0,
+    baseClick = 1,
+    baseAuto = 0,
+    upgradeCost = 50,
+    autoClickCost = 20000,
+    selectedSkin = 1,
+    autoInterval = null,
+    playerID = null,
+    purchasedSkins = [],
+    msgTimeout = null;
+
+let totalClicks = 0;
+let activeBoostMultiplier = 1;
 let boostTimer = null;
-
-// thresholds (persisted per player)
-function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-function getNextX2(){ return randomInt(200,500); }
-function getNextX3(){ return randomInt(600,900); }
-
+  
 // ====== SKINS ======
 const skins=[
 {id:1,name:"Default",img:"https://i.postimg.cc/BnNsnqwB/photo-5321361869136590759-y-removebg-preview.png",cost:0},
