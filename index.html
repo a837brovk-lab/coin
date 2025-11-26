@@ -66,8 +66,131 @@ h1 { font-size:32px; color:#ff00aa; margin-bottom:10px; text-shadow:0 0 10px #ff
 <!-- Firebase (совместимость) -->
 <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-database-compat.js"></script>
-
 <script>
+  // ===================== ADDITIONAL 100 FUNCTIONS =====================
+
+// ---------- 1-10: Debug & Logging ----------
+function logPlayerState() { console.log({playerID, ruina, baseClick, baseAuto, selectedSkin, totalClicks}); }
+function logSkins() { console.log(skins); }
+function logAchievements() { console.log(achievements); }
+function logInventory() { console.log(inventory); }
+function resetStats() { ruina=0; baseClick=1; baseAuto=0; totalClicks=0; savePlayer(); updateUI(); showToast('Stats reset'); }
+function doubleClickPower() { baseClick*=2; savePlayer(); updateUI(); showToast('Click power doubled'); }
+function halveClickPower() { baseClick=Math.max(1,Math.floor(baseClick/2)); savePlayer(); updateUI(); showToast('Click power halved'); }
+function logBoosts() { console.log(activeBoosts); }
+function listBoosts() { showToast('Active boosts: '+activeBoosts.map(b=>b.id).join(', ')); }
+function clearAllBoosts() { activeBoosts=[]; updateUI(); showToast('All boosts cleared'); }
+
+// ---------- 11-20: Player Interaction ----------
+function renamePlayer(newName){ playerID=newName; localStorage.setItem("playerID",playerID); updateUI(); showToast('Player renamed'); }
+function randomizePlayerID(){ playerID=generateID(); localStorage.setItem("playerID",playerID); updateUI(); showToast('Player ID randomized'); }
+function clonePlayer(){ const cloneID=generateID(); localStorage.setItem('ruinaData_'+cloneID, JSON.stringify(JSON.parse(localStorage.getItem('ruinaData_'+playerID)))); showToast('Player cloned with ID '+cloneID); }
+function stealRUINA(targetID, amount){ const targetBalance=getBalance(targetID); if(targetBalance>=amount){ setBalance(targetID,targetBalance-amount); ruina+=amount; updateUI(); savePlayer(); showToast(`Stole ${amount} RUINA from ${targetID}`); } }
+function donateRUINA(targetID, amount){ if(ruina>=amount){ ruina-=amount; setBalance(targetID,getBalance(targetID)+amount); updateUI(); savePlayer(); showToast(`Donated ${amount} RUINA to ${targetID}`); } }
+function resetSkins(){ purchasedSkins=[1]; selectedSkin=1; updateSkins(); savePlayer(); showToast('Skins reset'); }
+function maxAllSkins(){ skins.forEach(s=>{ if(!purchasedSkins.includes(s.id)) purchasedSkins.push(s.id); }); updateSkins(); savePlayer(); showToast('All skins unlocked'); }
+function showRandomSkin(){ const s=skins[randomInt(0,skins.length-1)]; showToast(`Random skin: ${s.name}`); }
+function swapRandomSkins(){ const owned=skins.filter(s=>purchasedSkins.includes(s.id)); const unowned=skins.filter(s=>!purchasedSkins.includes(s.id)); if(owned.length && unowned.length){ const o=owned[randomInt(0,owned.length-1)].id; const u=unowned[randomInt(0,unowned.length-1)].id; purchasedSkins=purchasedSkins.filter(id=>id!==o); purchasedSkins.push(u); updateSkins(); savePlayer(); showToast('Random skin swap done'); } }
+function giftSkin(targetID, skinID){ const targetData=JSON.parse(localStorage.getItem('ruinaData_'+targetID)||'{}'); if(!targetData.purchasedSkins) targetData.purchasedSkins=[1]; if(!targetData.purchasedSkins.includes(skinID)){ targetData.purchasedSkins.push(skinID); localStorage.setItem('ruinaData_'+targetID,JSON.stringify(targetData)); showToast(`Gifted skin ${skinID} to ${targetID}`); } }
+
+// ---------- 21-30: Click Multipliers ----------
+function applyRandomClickMultiplier(){ const mult=[1.5,2,2.5,3][randomInt(0,3)]; baseClick*=mult; savePlayer(); updateUI(); showToast(`Random multiplier applied x${mult}`); }
+function resetClickMultiplier(){ baseClick=1; savePlayer(); updateUI(); showToast('Click multiplier reset'); }
+function temporaryClickBoost(seconds, multiplier){ const old=baseClick; baseClick=Math.floor(baseClick*multiplier); updateUI(); showToast(`Click boosted x${multiplier} for ${seconds}s`); setTimeout(()=>{ baseClick=old; updateUI(); showToast('Click boost ended'); },seconds*1000); }
+function doubleClicksForNextN(n){ let count=0; const listener=(e)=>{ if(count<n){ tapEffective(); count++; } else window.removeEventListener('click',listener); }; window.addEventListener('click',listener); showToast(`Next ${n} clicks doubled`); }
+function randomClickPower(){ baseClick=randomInt(1,baseClick*5); updateUI(); savePlayer(); showToast('Random click power'); }
+function increaseClickPowerByPercent(p){ baseClick=Math.floor(baseClick*(1+p/100)); updateUI(); savePlayer(); showToast(`Click power +${p}%`); }
+function decreaseClickPowerByPercent(p){ baseClick=Math.max(1,Math.floor(baseClick*(1-p/100))); updateUI(); savePlayer(); showToast(`Click power -${p}%`); }
+function doubleClicksNextMinute(){ temporaryClickBoost(60,2); }
+function tripleClicksNextMinute(){ temporaryClickBoost(60,3); }
+function halveClicksNextMinute(){ temporaryClickBoost(60,0.5); }
+function setClickPowerTo(n){ baseClick=n; updateUI(); savePlayer(); showToast(`Click power set to ${n}`); }
+
+// ---------- 31-40: Auto Clickers ----------
+function doubleAutoClick(){ baseAuto*=2; startAutoClick(); savePlayer(); updateUI(); showToast('Auto click doubled'); }
+function halveAutoClick(){ baseAuto=Math.max(0,Math.floor(baseAuto/2)); startAutoClick(); savePlayer(); updateUI(); showToast('Auto click halved'); }
+function randomizeAutoClick(){ baseAuto=randomInt(0,baseAuto*5); startAutoClick(); savePlayer(); updateUI(); showToast('Auto click randomized'); }
+function temporaryAutoBoost(seconds, multiplier){ const old=baseAuto; baseAuto=Math.floor(baseAuto*multiplier); startAutoClick(); savePlayer(); updateUI(); showToast(`Auto click x${multiplier} for ${seconds}s`); setTimeout(()=>{ baseAuto=old; startAutoClick(); updateUI(); showToast('Auto click boost ended'); },seconds*1000); }
+function disableAutoClick(){ if(autoInterval) clearInterval(autoInterval); autoInterval=null; showToast('Auto click disabled'); }
+function enableAutoClick(){ startAutoClick(); showToast('Auto click enabled'); }
+function increaseAutoByPercent(p){ baseAuto=Math.floor(baseAuto*(1+p/100)); startAutoClick(); savePlayer(); updateUI(); showToast(`Auto click +${p}%`); }
+function decreaseAutoByPercent(p){ baseAuto=Math.max(0,Math.floor(baseAuto*(1-p/100))); startAutoClick(); savePlayer(); updateUI(); showToast(`Auto click -${p}%`); }
+function randomAutoBoost(){ temporaryAutoBoost(30,[1.5,2,2.5,3][randomInt(0,3)],1); }
+function doubleAutoNextMinute(){ temporaryAutoBoost(60,2); }
+
+// ---------- 41-50: Skin Effects ----------
+function randomSkinEffect(){ const s=skins[randomInt(0,skins.length-1)]; showToast(`Skin effect: ${s.name}`); }
+function applySkinClickBonus(id,mult){ const skin=skins.find(s=>s.id===id); if(skin){ if(!skin.bonus) skin.bonus={clickMult:1,autoMult:1}; skin.bonus.clickMult*=mult; savePlayer(); updateSkins(); showToast(`Skin ${skin.name} click bonus x${mult}`); } }
+function applySkinAutoBonus(id,mult){ const skin=skins.find(s=>s.id===id); if(skin){ if(!skin.bonus) skin.bonus={clickMult:1,autoMult:1}; skin.bonus.autoMult*=mult; savePlayer(); updateSkins(); showToast(`Skin ${skin.name} auto bonus x${mult}`); } }
+function resetSkinEffects(){ skins.forEach(s=>{ if(s.bonus) { s.bonus.clickMult=1; s.bonus.autoMult=1; } }); updateSkins(); savePlayer(); showToast('Skin effects reset'); }
+function randomizeSkinEffects(){ skins.forEach(s=>{ if(s.bonus){ s.bonus.clickMult=randomInt(1,5); s.bonus.autoMult=randomInt(1,5); } }); updateSkins(); savePlayer(); showToast('Skin effects randomized'); }
+function doubleSelectedSkinClick(){ applySkinClickBonus(selectedSkin,2); }
+function doubleSelectedSkinAuto(){ applySkinAutoBonus(selectedSkin,2); }
+function halveSelectedSkinClick(){ applySkinClickBonus(selectedSkin,0.5); }
+function halveSelectedSkinAuto(){ applySkinAutoBonus(selectedSkin,0.5); }
+function swapSkinBonuses(){ const s1=skins[randomInt(0,skins.length-1)]; const s2=skins[randomInt(0,skins.length-1)]; if(s1.bonus && s2.bonus){ [s1.bonus.clickMult,s2.bonus.clickMult]=[s2.bonus.clickMult,s1.bonus.clickMult]; [s1.bonus.autoMult,s2.bonus.autoMult]=[s2.bonus.autoMult,s1.bonus.autoMult]; updateSkins(); savePlayer(); showToast('Skin bonuses swapped'); } }
+function maxSkinEffects(){ skins.forEach(s=>{ if(!s.bonus) s.bonus={clickMult:1,autoMult:1}; s.bonus.clickMult=10; s.bonus.autoMult=10; }); updateSkins(); savePlayer(); showToast('All skin bonuses maxed'); }
+
+// ---------- 51-60: Mini-Games ----------
+function startClickRace(){ miniGameActive=true; showToast('Click race started!'); }
+function endClickRace(){ miniGameActive=false; showToast('Click race ended!'); }
+function randomMiniReward(){ const reward=randomInt(500,5000); ruina+=reward; updateUI(); savePlayer(); showToast('Mini-game reward: '+reward); }
+function miniGameDoubleClicks(){ doubleClicksNextMinute(); }
+function miniGameDoubleAuto(){ doubleAutoNextMinute(); }
+function miniGameRandomSkin(){ randomSkinDrop(); }
+function miniGameBoost(){ applyBoost('mini',2,30); updateUI(); }
+function miniGameSteal(){ const target=generateID(); stealRUINA(target, randomInt(1,1000)); }
+function miniGameDonate(){ const target=generateID(); donateRUINA(target, randomInt(1,500)); }
+function miniGameRandomize(){ randomClickPower(); randomAutoBoost(); randomSkinDrop(); }
+
+// ---------- 61-70: Leaderboards ----------
+function submitRandomScore(){ submitScore('Player'+randomInt(1,1000), ruina); }
+function clearLeaderboard(){ localStorage.removeItem('ruina_lb'); showToast('Leaderboard cleared'); }
+function showTop10(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]').slice(0,10); alert('Top 10:\n'+lb.map((r,i)=>`${i+1}. ${r.name} - ${formatNumber(r.score)}`).join('\n')); }
+function rankPlayer(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]'); lb.push({name:playerID,score:ruina,date:Date.now()}); lb.sort((a,b)=>b.score-a.score); const rank=lb.findIndex(r=>r.name===playerID)+1; showToast('Your rank: '+rank); }
+function rewardTopPlayer(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]'); if(lb.length) awardCurrency(lb[0].score/10); }
+function leaderboardRandomize(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]'); lb.forEach(r=>r.score=randomInt(0,1000000)); localStorage.setItem('ruina_lb',JSON.stringify(lb)); showToast('Leaderboard randomized'); }
+function simulateLeaderboard(){ for(let i=0;i<10;i++) submitScore('Bot'+i,randomInt(0,1000000)); showToast('Leaderboard simulated'); }
+function awardTop10(){ const lb=JSON.parse(localStorage.getItem('ruina_lb')||'[]').sort((a,b)=>b.score-a.score).slice(0,10); lb.forEach(r=>awardCurrency(r.score/100)); showToast('Top 10 rewarded'); }
+function rankAndReward(){ rankPlayer(); awardTop10(); }
+
+// ---------- 71-80: Notifications ----------
+function notifyOnClick(){ document.getElementById('tapButton').addEventListener('click',()=>showToast('Clicked!')); }
+function notifyOnAuto(){ setInterval(()=>showToast('Auto click!'),5000); }
+function notifyOnBoost(){ showToast('Boost available!'); }
+function scheduleDailyNotification(){ scheduleNotification('Daily bonus ready!', 10000); }
+function randomNotification(){ scheduleNotification(['Hello','Good luck','RUINA awaits!'][randomInt(0,2)], 5000); }
+function notifyRandomSkin(){ scheduleNotification('New skin found!',5000); }
+function notifyMilestone(){ if(totalClicks%100===0) showToast('Milestone reached: '+totalClicks); }
+function notifyBigClick(){ if(effectiveClickPower()>100) showToast('Big click!'); }
+function notifyBigAuto(){ if(baseAuto>100) showToast('Big auto!'); }
+function notifyBoostEnd(){ scheduleNotification('Boost ended!',10000); }
+
+// ---------- 81-90: Cosmetic & Animation ----------
+function rainbowBackground(){ document.body.style.background='linear-gradient(to right, red,orange,yellow,green,blue,indigo,violet)'; showToast('Rainbow background'); }
+function resetBackground(){ document.body.style.background='#0f0f0f'; showToast('Background reset'); }
+function pulseTapButton(){ const btn=document.getElementById('tapButton'); btn.style.transition='transform 0.2s'; btn.style.transform='scale(1.2)'; setTimeout(()=>btn.style.transform='scale(1)',200); }
+function spinTapButton(){ const btn=document.getElementById('tapButton'); btn.style.transition='transform 0.5s'; btn.style.transform='rotate(360deg)'; setTimeout(()=>btn.style.transform='rotate(0deg)',500); }
+function wiggleTapButton(){ const btn=document.getElementById('tapButton'); btn.style.transition='transform 0.1s'; btn.style.transform='rotate(10deg)'; setTimeout(()=>btn.style.transform='rotate(-10deg)',100); setTimeout(()=>btn.style.transform='rotate(0deg)',200); }
+function flashScreen(){ document.body.style.transition='background 0.1s'; document.body.style.background='#fff'; setTimeout(()=>document.body.style.background='#0f0f0f',100); }
+function spawnParticlesBurst(){ spawnSimpleParticles(50); }
+function fallingCoins(){ for(let i=0;i<20;i++){ const coin=document.createElement('div'); coin.innerText='💰'; coin.style.position='fixed'; coin.style.top='-20px'; coin.style.left=randomInt(0,window.innerWidth)+'px'; coin.style.fontSize='24px'; document.body.appendChild(coin); setTimeout(()=>{ coin.style.transition='top 2s linear'; coin.style.top='100%'; setTimeout(()=>coin.remove(),2000); },10); } }
+function bounceTapButton(){ const btn=document.getElementById('tapButton'); btn.style.transition='transform 0.3s'; btn.style.transform='translateY(-20px)'; setTimeout(()=>btn.style.transform='translateY(0)',300); }
+
+// ---------- 91-100: Miscellaneous Fun ----------
+function cheatRUINA(amount){ ruina+=amount; updateUI(); savePlayer(); showToast('Cheated '+amount+' RUINA'); }
+function randomPrestige(){ doPrestige(); showToast('Random prestige!'); }
+function instantAutoMax(){ baseAuto=999; startAutoClick(); savePlayer(); updateUI(); showToast('Auto maxed instantly'); }
+function instantClickMax(){ baseClick=999; savePlayer(); updateUI(); showToast('Click maxed instantly'); }
+function rollDice(){ showToast('Rolled: '+randomInt(1,6)); }
+function flipCoin(){ showToast(Math.random()<0.5?'Heads':'Tails'); }
+function spawnRandomEmoji(){ const e=document.createElement('div'); e.innerText=['🎉','🔥','💎','💰'][randomInt(0,3)]; e.style.position='fixed'; e.style.left=randomInt(0,window.innerWidth)+'px'; e.style.top=randomInt(0,window.innerHeight)+'px'; e.style.fontSize='32px'; document.body.appendChild(e); setTimeout(()=>e.remove(),1000); }
+function randomColorizeText(el){ el.style.color='rgb('+randomInt(0,255)+','+randomInt(0,255)+','+randomInt(0,255)+')'; }
+function miniExplosion(){ spawnSimpleParticles(100); flashScreen(); }
+function megaBoost(){ applyBoost('mega',5,30); updateUI(); showToast('MEGA BOOST x5!'); }
+function ultimateClick(){ temporaryClickBoost(60,10); }
+function ultimateAuto(){ temporaryAutoBoost(60,10); }
+
 // ====== FIREBASE CONFIG ======
 const firebaseConfig = {
   apiKey: "AIzaSyCTPqupywSBU4S5inETk8p-tQFMe3Dx4tE",
